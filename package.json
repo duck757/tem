@@ -6,6 +6,8 @@
   "scripts": {
     "start": "node server.js",
     "dev": "nodemon server.js",
+    "monitor": "node monitor.js",
+    "start:optimized": "NODE_OPTIONS=\"--max-old-space-size=400 --expose-gc\" node server.js",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "keywords": [
