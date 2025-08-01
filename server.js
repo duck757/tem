@@ -4,18 +4,20 @@ const path = require('path');
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// Memory optimization for VPS
-const MAX_SESSIONS = 100; // Limit concurrent sessions
-const SESSION_CLEANUP_INTERVAL = 30 * 60 * 1000; // 30 minutes
-const MAX_AGE = 2 * 60 * 60 * 1000; // 2 hours (reduced from 24h for VPS)
+// Memory optimization for 512MB VPS
+const MAX_SESSIONS = 50; // Reduced from 100 for 512MB VPS
+const SESSION_CLEANUP_INTERVAL = 15 * 60 * 1000; // 15 minutes (more frequent cleanup)
+const MAX_AGE = 60 * 60 * 1000; // 1 hour (reduced from 2h for 512MB VPS)
+const MAX_MESSAGES_PER_SESSION = 25; // Limit messages per session
+const MEMORY_THRESHOLD = 400; // MB - trigger cleanup if memory usage exceeds this
 
 app.use(express.static(__dirname));
-app.use(express.json({ limit: '1mb' })); // Limit request size
+app.use(express.json({ limit: '512kb' })); // Reduced from 1mb for 512MB VPS
 
 // Store active sessions with size limit
 const activeSessions = new Map();
 
-// Memory monitoring
+// Memory monitoring with alerts
 const getMemoryUsage = () => {
   const usage = process.memoryUsage();
   return {
@@ -26,11 +28,32 @@ const getMemoryUsage = () => {
   };
 };
 
-// Clean up old sessions
+// Aggressive cleanup for 512MB VPS
 const cleanupSessions = () => {
   const now = Date.now();
   let cleaned = 0;
+  const mem = getMemoryUsage();
   
+  // Emergency cleanup if memory usage is high
+  if (mem.rss > MEMORY_THRESHOLD) {
+    console.log(`⚠️  High memory usage detected: ${mem.rss}MB. Performing emergency cleanup...`);
+    
+    // Remove all sessions older than 30 minutes
+    for (const [sessionId, session] of activeSessions.entries()) {
+      if (now - session.createdAt > 30 * 60 * 1000) {
+        activeSessions.delete(sessionId);
+        cleaned++;
+      }
+    }
+    
+    // Force garbage collection if available
+    if (global.gc) {
+      global.gc();
+      console.log('🧹 Forced garbage collection');
+    }
+  }
+  
+  // Regular cleanup
   for (const [sessionId, session] of activeSessions.entries()) {
     if (now - session.createdAt > MAX_AGE) {
       activeSessions.delete(sessionId);
@@ -49,19 +72,45 @@ const cleanupSessions = () => {
   }
   
   if (cleaned > 0) {
-    console.log(`Cleaned up ${cleaned} sessions. Active sessions: ${activeSessions.size}`);
+    console.log(`🧹 Cleaned up ${cleaned} sessions. Active sessions: ${activeSessions.size}`);
   }
   
   // Log memory usage
-  const mem = getMemoryUsage();
-  console.log(`Memory usage: RSS: ${mem.rss}MB, Heap: ${mem.heapUsed}/${mem.heapTotal}MB`);
+  const newMem = getMemoryUsage();
+  console.log(`📊 Memory usage: RSS: ${newMem.rss}MB, Heap: ${newMem.heapUsed}/${newMem.heapTotal}MB`);
+  
+  // Warning if still high
+  if (newMem.rss > MEMORY_THRESHOLD * 0.8) {
+    console.log(`⚠️  Memory usage still high: ${newMem.rss}MB`);
+  }
 };
 
 // Set up periodic cleanup
 setInterval(cleanupSessions, SESSION_CLEANUP_INTERVAL);
 
+// Add memory monitoring endpoint
+app.get('/api/memory', (req, res) => {
+  const mem = getMemoryUsage();
+  res.json({
+    memory: mem,
+    activeSessions: activeSessions.size,
+    maxSessions: MAX_SESSIONS,
+    threshold: MEMORY_THRESHOLD,
+    isHigh: mem.rss > MEMORY_THRESHOLD
+  });
+});
+
 app.get('/api/generate', async (req, res) => {
   try {
+    // Check memory usage first
+    const mem = getMemoryUsage();
+    if (mem.rss > MEMORY_THRESHOLD) {
+      console.log(`⚠️  Rejecting request due to high memory: ${mem.rss}MB`);
+      return res.status(503).json({ 
+        error: 'Service temporarily overloaded. Please try again in a few minutes.' 
+      });
+    }
+    
     // Check if we're at capacity
     if (activeSessions.size >= MAX_SESSIONS) {
       return res.status(503).json({ 
@@ -71,7 +120,7 @@ app.get('/api/generate', async (req, res) => {
     
     // Get available domains
     const domainRes = await fetch('https://api.mail.tm/domains', {
-      timeout: 10000 // 10 second timeout
+      timeout: 5000 // Reduced timeout for 512MB VPS
     });
     const domainData = await domainRes.json();
     
@@ -89,7 +138,7 @@ app.get('/api/generate', async (req, res) => {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ address, password }),
-      timeout: 10000
+      timeout: 5000
     });
     
     if (!accountRes.ok) {
@@ -102,7 +151,7 @@ app.get('/api/generate', async (req, res) => {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ address, password }),
-      timeout: 10000
+      timeout: 5000
     });
     
     if (!tokenRes.ok) {
@@ -118,7 +167,8 @@ app.get('/api/generate', async (req, res) => {
       address, 
       token, 
       createdAt: Date.now(),
-      lastActivity: Date.now()
+      lastActivity: Date.now(),
+      messageCount: 0 // Track message count per session
     });
     
     res.json({ 
@@ -145,12 +195,13 @@ app.get('/api/messages', async (req, res) => {
     
     // Update session activity
     if (sessionId && activeSessions.has(sessionId)) {
-      activeSessions.get(sessionId).lastActivity = Date.now();
+      const session = activeSessions.get(sessionId);
+      session.lastActivity = Date.now();
     }
     
     const messagesRes = await fetch('https://api.mail.tm/messages', {
       headers: { Authorization: `Bearer ${token}` },
-      timeout: 10000
+      timeout: 5000
     });
     
     if (!messagesRes.ok) {
@@ -162,7 +213,12 @@ app.get('/api/messages', async (req, res) => {
     
     // Sort messages by date (newest first) and limit to prevent memory issues
     messages.sort((a, b) => new Date(b.date) - new Date(a.date));
-    const limitedMessages = messages.slice(0, 50); // Limit to 50 messages
+    const limitedMessages = messages.slice(0, MAX_MESSAGES_PER_SESSION); // Limit to 25 messages
+    
+    // Update session message count
+    if (sessionId && activeSessions.has(sessionId)) {
+      activeSessions.get(sessionId).messageCount = limitedMessages.length;
+    }
     
     res.json(limitedMessages);
     
@@ -183,7 +239,7 @@ app.get('/api/message/:id', async (req, res) => {
     
     const messageRes = await fetch(`https://api.mail.tm/messages/${id}`, {
       headers: { Authorization: `Bearer ${token}` },
-      timeout: 10000
+      timeout: 5000
     });
     
     if (!messageRes.ok) {
@@ -209,9 +265,9 @@ app.delete('/api/message/:id', async (req, res) => {
     }
     
     const deleteRes = await fetch(`https://api.mail.tm/messages/${id}`, {
-      method: 'DELETE',
+      method: 'Delete',
       headers: { Authorization: `Bearer ${token}` },
-      timeout: 10000
+      timeout: 5000
     });
     
     if (!deleteRes.ok) {
@@ -229,7 +285,7 @@ app.delete('/api/message/:id', async (req, res) => {
 app.get('/api/domains', async (req, res) => {
   try {
     const domainsRes = await fetch('https://api.mail.tm/domains', {
-      timeout: 10000
+      timeout: 5000
     });
     const domainsData = await domainsRes.json();
     
@@ -257,7 +313,7 @@ app.get('/api/status', async (req, res) => {
     // Test token validity by trying to fetch messages
     const messagesRes = await fetch('https://api.mail.tm/messages', {
       headers: { Authorization: `Bearer ${token}` },
-      timeout: 10000
+      timeout: 5000
     });
     
     const isValid = messagesRes.ok;
@@ -279,11 +335,13 @@ app.get('/api/status', async (req, res) => {
 app.get('/api/health', (req, res) => {
   const mem = getMemoryUsage();
   res.json({
-    status: 'healthy',
+    status: mem.rss > MEMORY_THRESHOLD ? 'warning' : 'healthy',
     uptime: process.uptime(),
     memory: mem,
     activeSessions: activeSessions.size,
-    maxSessions: MAX_SESSIONS
+    maxSessions: MAX_SESSIONS,
+    threshold: MEMORY_THRESHOLD,
+    isHigh: mem.rss > MEMORY_THRESHOLD
   });
 });
 
@@ -301,9 +359,12 @@ process.on('SIGINT', () => {
 });
 
 app.listen(PORT, () => {
-  console.log(`TempMail server running on port ${PORT}`);
-  console.log(`Memory limit: ~512MB VPS optimized`);
-  console.log(`Max sessions: ${MAX_SESSIONS}`);
-  console.log(`Session timeout: ${MAX_AGE / 1000 / 60} minutes`);
-  console.log(`Visit http://localhost:${PORT} to use the service`);
+  console.log(`🚀 TempMail server running on port ${PORT}`);
+  console.log(`💾 Optimized for 512MB VPS`);
+  console.log(`👥 Max sessions: ${MAX_SESSIONS}`);
+  console.log(`⏰ Session timeout: ${MAX_AGE / 1000 / 60} minutes`);
+  console.log(`🧹 Cleanup interval: ${SESSION_CLEANUP_INTERVAL / 1000 / 60} minutes`);
+  console.log(`📊 Memory threshold: ${MEMORY_THRESHOLD}MB`);
+  console.log(`📧 Max messages per session: ${MAX_MESSAGES_PER_SESSION}`);
+  console.log(`🌐 Visit http://localhost:${PORT} to use the service`);
 });
