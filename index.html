@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="en" class="bg-gray-100">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="description" content="TempMonkeyMail - Free Disposable Email Tool">
+  <title>TempMonkeyMail</title>
+  <script src="https://cdn.tailwindcss.com?plugins=forms"></script>
+</head>
+<body class="flex items-center justify-center min-h-screen p-4">
+  <div class="bg-white rounded-2xl shadow-lg p-6 max-w-xl w-full">
+    <h1 class="text-2xl font-bold text-gray-800 mb-4 text-center">🐒 TempMonkeyMail</h1>
+    <div class="flex items-center justify-between mb-4">
+      <span id="emailAddress" class="font-mono text-sm text-gray-600">Click to generate</span>
+      <button onclick="generateEmail()" class="bg-green-500 hover:bg-green-600 text-white px-4 py-1 rounded">
+        Generate
+      </button>
+    </div>
+    <button onclick="copyEmail()" class="text-sm text-blue-500 mb-4">📋 Copy Email</button>
+    <div>
+      <h2 class="text-lg font-semibold mb-2">Inbox</h2>
+      <ul id="inbox" class="text-sm text-gray-700 space-y-2"></ul>
+    </div>
+  </div>
+  <script>
+    let token = "", address = "";
+
+    async function generateEmail() {
+      const res = await fetch("/api/generate");
+      const data = await res.json();
+      token = data.token;
+      address = data.address;
+      document.getElementById("emailAddress").textContent = address;
+      loadInbox();
+    }
+
+    async function loadInbox() {
+      const res = await fetch(`/api/messages?token=${token}`);
+      const messages = await res.json();
+      const inbox = document.getElementById("inbox");
+      inbox.innerHTML = "";
+      messages.forEach(msg => {
+        const item = document.createElement("li");
+        item.textContent = `${msg.from.address} — ${msg.subject}`;
+        inbox.appendChild(item);
+      });
+    }
+
+    function copyEmail() {
+      if (!address) return alert("No email generated!");
+      navigator.clipboard.writeText(address).then(() => alert("Copied!"));
+    }
+  </script>
+</body>
+</html>
