@@ -11,46 +11,141 @@
 <body class="flex items-center justify-center min-h-screen p-4">
   <div class="bg-white rounded-2xl shadow-lg p-6 max-w-xl w-full">
     <h1 class="text-2xl font-bold text-gray-800 mb-4 text-center">🐒 TempMonkeyMail</h1>
+    
+    <!-- Status indicator -->
+    <div id="status" class="text-xs text-gray-500 mb-2 text-center"></div>
+    
     <div class="flex items-center justify-between mb-4">
       <span id="emailAddress" class="font-mono text-sm text-gray-600">Click to generate</span>
-      <button onclick="generateEmail()" class="bg-green-500 hover:bg-green-600 text-white px-4 py-1 rounded">
+      <button id="generateBtn" onclick="generateEmail()" class="bg-green-500 hover:bg-green-600 text-white px-4 py-1 rounded disabled:opacity-50">
         Generate
       </button>
     </div>
+    
     <button onclick="copyEmail()" class="text-sm text-blue-500 mb-4">📋 Copy Email</button>
+    
     <div>
-      <h2 class="text-lg font-semibold mb-2">Inbox</h2>
+      <div class="flex items-center justify-between mb-2">
+        <h2 class="text-lg font-semibold">Inbox</h2>
+        <button onclick="loadInbox()" class="text-xs text-gray-500 hover:text-gray-700">🔄 Refresh</button>
+      </div>
+      <div id="loading" class="text-sm text-gray-500 hidden">Loading messages...</div>
+      <div id="error" class="text-sm text-red-500 hidden"></div>
       <ul id="inbox" class="text-sm text-gray-700 space-y-2"></ul>
     </div>
   </div>
+  
   <script>
     let token = "", address = "";
+    let refreshInterval = null;
+
+    // Memory-efficient status checking
+    async function checkStatus() {
+      try {
+        const res = await fetch("/api/status");
+        const data = await res.json();
+        document.getElementById("status").textContent = 
+          `Memory: ${data.memory.heapUsed} | Uptime: ${data.uptime}`;
+      } catch (error) {
+        console.error('Status check failed:', error);
+      }
+    }
 
     async function generateEmail() {
-      const res = await fetch("/api/generate");
-      const data = await res.json();
-      token = data.token;
-      address = data.address;
-      document.getElementById("emailAddress").textContent = address;
-      loadInbox();
+      const btn = document.getElementById("generateBtn");
+      btn.disabled = true;
+      btn.textContent = "Generating...";
+      
+      try {
+        const res = await fetch("/api/generate");
+        if (!res.ok) {
+          const error = await res.json();
+          throw new Error(error.error || 'Failed to generate email');
+        }
+        
+        const data = await res.json();
+        token = data.token;
+        address = data.address;
+        document.getElementById("emailAddress").textContent = address;
+        
+        // Start auto-refresh for inbox
+        if (refreshInterval) clearInterval(refreshInterval);
+        refreshInterval = setInterval(loadInbox, 30000); // Refresh every 30 seconds
+        
+        loadInbox();
+      } catch (error) {
+        showError(error.message);
+      } finally {
+        btn.disabled = false;
+        btn.textContent = "Generate";
+      }
     }
 
     async function loadInbox() {
-      const res = await fetch(`/api/messages?token=${token}`);
-      const messages = await res.json();
+      if (!token) return;
+      
+      const loading = document.getElementById("loading");
+      const error = document.getElementById("error");
       const inbox = document.getElementById("inbox");
-      inbox.innerHTML = "";
-      messages.forEach(msg => {
-        const item = document.createElement("li");
-        item.textContent = `${msg.from.address} — ${msg.subject}`;
-        inbox.appendChild(item);
-      });
+      
+      loading.classList.remove("hidden");
+      error.classList.add("hidden");
+      
+      try {
+        const res = await fetch(`/api/messages?token=${token}`);
+        if (!res.ok) {
+          const errorData = await res.json();
+          throw new Error(errorData.error || 'Failed to load messages');
+        }
+        
+        const messages = await res.json();
+        inbox.innerHTML = "";
+        
+        if (messages.length === 0) {
+          inbox.innerHTML = "<li class='text-gray-500 italic'>No messages yet</li>";
+        } else {
+          // Limit to last 20 messages to prevent memory issues
+          messages.slice(-20).forEach(msg => {
+            const item = document.createElement("li");
+            item.className = "border-l-2 border-gray-200 pl-2";
+            item.textContent = `${msg.from.address} — ${msg.subject}`;
+            inbox.appendChild(item);
+          });
+        }
+      } catch (error) {
+        showError(error.message);
+      } finally {
+        loading.classList.add("hidden");
+      }
+    }
+
+    function showError(message) {
+      const error = document.getElementById("error");
+      error.textContent = message;
+      error.classList.remove("hidden");
     }
 
     function copyEmail() {
-      if (!address) return alert("No email generated!");
-      navigator.clipboard.writeText(address).then(() => alert("Copied!"));
+      if (!address) {
+        showError("No email generated!");
+        return;
+      }
+      
+      navigator.clipboard.writeText(address).then(() => {
+        const btn = document.querySelector('button[onclick="copyEmail()"]');
+        const originalText = btn.textContent;
+        btn.textContent = "✅ Copied!";
+        setTimeout(() => {
+          btn.textContent = originalText;
+        }, 2000);
+      }).catch(() => {
+        showError("Failed to copy email");
+      });
     }
+
+    // Initialize status check
+    checkStatus();
+    setInterval(checkStatus, 60000); // Check every minute
   </script>
 </body>
 </html>
