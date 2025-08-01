@@ -4,16 +4,75 @@ const path = require('path');
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-app.use(express.static(__dirname));
-app.use(express.json());
+// Memory optimization for VPS
+const MAX_SESSIONS = 100; // Limit concurrent sessions
+const SESSION_CLEANUP_INTERVAL = 30 * 60 * 1000; // 30 minutes
+const MAX_AGE = 2 * 60 * 60 * 1000; // 2 hours (reduced from 24h for VPS)
 
-// Store active sessions
+app.use(express.static(__dirname));
+app.use(express.json({ limit: '1mb' })); // Limit request size
+
+// Store active sessions with size limit
 const activeSessions = new Map();
+
+// Memory monitoring
+const getMemoryUsage = () => {
+  const usage = process.memoryUsage();
+  return {
+    rss: Math.round(usage.rss / 1024 / 1024 * 100) / 100, // MB
+    heapTotal: Math.round(usage.heapTotal / 1024 / 1024 * 100) / 100, // MB
+    heapUsed: Math.round(usage.heapUsed / 1024 / 1024 * 100) / 100, // MB
+    external: Math.round(usage.external / 1024 / 1024 * 100) / 100 // MB
+  };
+};
+
+// Clean up old sessions
+const cleanupSessions = () => {
+  const now = Date.now();
+  let cleaned = 0;
+  
+  for (const [sessionId, session] of activeSessions.entries()) {
+    if (now - session.createdAt > MAX_AGE) {
+      activeSessions.delete(sessionId);
+      cleaned++;
+    }
+  }
+  
+  // If we have too many sessions, remove oldest ones
+  if (activeSessions.size > MAX_SESSIONS) {
+    const sessions = Array.from(activeSessions.entries())
+      .sort((a, b) => a[1].createdAt - b[1].createdAt);
+    
+    const toRemove = sessions.slice(0, activeSessions.size - MAX_SESSIONS);
+    toRemove.forEach(([sessionId]) => activeSessions.delete(sessionId));
+    cleaned += toRemove.length;
+  }
+  
+  if (cleaned > 0) {
+    console.log(`Cleaned up ${cleaned} sessions. Active sessions: ${activeSessions.size}`);
+  }
+  
+  // Log memory usage
+  const mem = getMemoryUsage();
+  console.log(`Memory usage: RSS: ${mem.rss}MB, Heap: ${mem.heapUsed}/${mem.heapTotal}MB`);
+};
+
+// Set up periodic cleanup
+setInterval(cleanupSessions, SESSION_CLEANUP_INTERVAL);
 
 app.get('/api/generate', async (req, res) => {
   try {
+    // Check if we're at capacity
+    if (activeSessions.size >= MAX_SESSIONS) {
+      return res.status(503).json({ 
+        error: 'Service temporarily at capacity. Please try again in a few minutes.' 
+      });
+    }
+    
     // Get available domains
-    const domainRes = await fetch('https://api.mail.tm/domains');
+    const domainRes = await fetch('https://api.mail.tm/domains', {
+      timeout: 10000 // 10 second timeout
+    });
     const domainData = await domainRes.json();
     
     if (!domainData['hydra:member'] || domainData['hydra:member'].length === 0) {
@@ -29,7 +88,8 @@ app.get('/api/generate', async (req, res) => {
     const accountRes = await fetch('https://api.mail.tm/accounts', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ address, password })
+      body: JSON.stringify({ address, password }),
+      timeout: 10000
     });
     
     if (!accountRes.ok) {
@@ -41,7 +101,8 @@ app.get('/api/generate', async (req, res) => {
     const tokenRes = await fetch('https://api.mail.tm/token', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ address, password })
+      body: JSON.stringify({ address, password }),
+      timeout: 10000
     });
     
     if (!tokenRes.ok) {
@@ -51,16 +112,21 @@ app.get('/api/generate', async (req, res) => {
     const tokenData = await tokenRes.json();
     const token = tokenData.token;
     
-    // Store session
+    // Store session with size limit
     const sessionId = Math.random().toString(36).substring(2, 15);
-    activeSessions.set(sessionId, { address, token, createdAt: Date.now() });
+    activeSessions.set(sessionId, { 
+      address, 
+      token, 
+      createdAt: Date.now(),
+      lastActivity: Date.now()
+    });
     
     res.json({ 
       address, 
       token, 
       sessionId,
       domain,
-      expiresAt: Date.now() + (24 * 60 * 60 * 1000) // 24 hours
+      expiresAt: Date.now() + MAX_AGE
     });
     
   } catch (error) {
@@ -77,8 +143,14 @@ app.get('/api/messages', async (req, res) => {
       return res.status(400).json({ error: 'Token required' });
     }
     
+    // Update session activity
+    if (sessionId && activeSessions.has(sessionId)) {
+      activeSessions.get(sessionId).lastActivity = Date.now();
+    }
+    
     const messagesRes = await fetch('https://api.mail.tm/messages', {
-      headers: { Authorization: `Bearer ${token}` }
+      headers: { Authorization: `Bearer ${token}` },
+      timeout: 10000
     });
     
     if (!messagesRes.ok) {
@@ -88,10 +160,11 @@ app.get('/api/messages', async (req, res) => {
     const messagesData = await messagesRes.json();
     const messages = messagesData['hydra:member'] || [];
     
-    // Sort messages by date (newest first)
+    // Sort messages by date (newest first) and limit to prevent memory issues
     messages.sort((a, b) => new Date(b.date) - new Date(a.date));
+    const limitedMessages = messages.slice(0, 50); // Limit to 50 messages
     
-    res.json(messages);
+    res.json(limitedMessages);
     
   } catch (error) {
     console.error('Error fetching messages:', error);
@@ -109,7 +182,8 @@ app.get('/api/message/:id', async (req, res) => {
     }
     
     const messageRes = await fetch(`https://api.mail.tm/messages/${id}`, {
-      headers: { Authorization: `Bearer ${token}` }
+      headers: { Authorization: `Bearer ${token}` },
+      timeout: 10000
     });
     
     if (!messageRes.ok) {
@@ -136,7 +210,8 @@ app.delete('/api/message/:id', async (req, res) => {
     
     const deleteRes = await fetch(`https://api.mail.tm/messages/${id}`, {
       method: 'DELETE',
-      headers: { Authorization: `Bearer ${token}` }
+      headers: { Authorization: `Bearer ${token}` },
+      timeout: 10000
     });
     
     if (!deleteRes.ok) {
@@ -153,7 +228,9 @@ app.delete('/api/message/:id', async (req, res) => {
 
 app.get('/api/domains', async (req, res) => {
   try {
-    const domainsRes = await fetch('https://api.mail.tm/domains');
+    const domainsRes = await fetch('https://api.mail.tm/domains', {
+      timeout: 10000
+    });
     const domainsData = await domainsRes.json();
     
     if (!domainsRes.ok) {
@@ -179,14 +256,17 @@ app.get('/api/status', async (req, res) => {
     
     // Test token validity by trying to fetch messages
     const messagesRes = await fetch('https://api.mail.tm/messages', {
-      headers: { Authorization: `Bearer ${token}` }
+      headers: { Authorization: `Bearer ${token}` },
+      timeout: 10000
     });
     
     const isValid = messagesRes.ok;
     
     res.json({ 
       valid: isValid,
-      timestamp: Date.now()
+      timestamp: Date.now(),
+      activeSessions: activeSessions.size,
+      maxSessions: MAX_SESSIONS
     });
     
   } catch (error) {
@@ -195,19 +275,35 @@ app.get('/api/status', async (req, res) => {
   }
 });
 
-// Clean up old sessions periodically
-setInterval(() => {
-  const now = Date.now();
-  const maxAge = 24 * 60 * 60 * 1000; // 24 hours
-  
-  for (const [sessionId, session] of activeSessions.entries()) {
-    if (now - session.createdAt > maxAge) {
-      activeSessions.delete(sessionId);
-    }
-  }
-}, 60 * 60 * 1000); // Clean up every hour
+// Health check endpoint
+app.get('/api/health', (req, res) => {
+  const mem = getMemoryUsage();
+  res.json({
+    status: 'healthy',
+    uptime: process.uptime(),
+    memory: mem,
+    activeSessions: activeSessions.size,
+    maxSessions: MAX_SESSIONS
+  });
+});
+
+// Graceful shutdown
+process.on('SIGTERM', () => {
+  console.log('SIGTERM received, shutting down gracefully');
+  cleanupSessions();
+  process.exit(0);
+});
+
+process.on('SIGINT', () => {
+  console.log('SIGINT received, shutting down gracefully');
+  cleanupSessions();
+  process.exit(0);
+});
 
 app.listen(PORT, () => {
   console.log(`TempMail server running on port ${PORT}`);
+  console.log(`Memory limit: ~512MB VPS optimized`);
+  console.log(`Max sessions: ${MAX_SESSIONS}`);
+  console.log(`Session timeout: ${MAX_AGE / 1000 / 60} minutes`);
   console.log(`Visit http://localhost:${PORT} to use the service`);
 });
