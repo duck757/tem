@@ -9,137 +9,196 @@
   <script src="https://cdn.tailwindcss.com"></script>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
   <style>
-    body { font-family: 'Inter', sans-serif; }
-    .gradient-bg {
+    body { 
+      font-family: 'Inter', sans-serif; 
+      background-color: #f8fafc;
+    }
+    .email-container {
       background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      min-height: 100vh;
     }
-    .glass-effect {
-      background: rgba(255, 255, 255, 0.95);
-      backdrop-filter: blur(10px);
-      border: 1px solid rgba(255, 255, 255, 0.2);
+    .main-card {
+      background: white;
+      border-radius: 12px;
+      box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1);
     }
-    .email-card {
-      transition: all 0.3s ease;
-      border: 1px solid rgba(255, 255, 255, 0.1);
+    .email-input {
+      background: #f8fafc;
+      border: 2px solid #e2e8f0;
+      border-radius: 8px;
+      transition: all 0.2s ease;
     }
-    .email-card:hover {
-      transform: translateY(-2px);
-      box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
+    .email-input:focus {
+      border-color: #667eea;
+      box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
     }
     .btn-primary {
       background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-      transition: all 0.3s ease;
+      transition: all 0.2s ease;
     }
     .btn-primary:hover {
       transform: translateY(-1px);
-      box-shadow: 0 10px 20px rgba(102, 126, 234, 0.3);
+      box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
     }
     .btn-secondary {
-      background: rgba(255, 255, 255, 0.1);
-      border: 1px solid rgba(255, 255, 255, 0.2);
-      transition: all 0.3s ease;
+      background: #f1f5f9;
+      border: 1px solid #e2e8f0;
+      transition: all 0.2s ease;
     }
     .btn-secondary:hover {
-      background: rgba(255, 255, 255, 0.2);
-      transform: translateY(-1px);
+      background: #e2e8f0;
     }
-    .loading {
-      animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+    .email-item {
+      border: 1px solid #e2e8f0;
+      border-radius: 8px;
+      transition: all 0.2s ease;
     }
-    @keyframes pulse {
-      0%, 100% { opacity: 1; }
-      50% { opacity: 0.5; }
+    .email-item:hover {
+      border-color: #667eea;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+    }
+    .email-item.unread {
+      border-left: 4px solid #667eea;
+      background: #f8fafc;
+    }
+    .loading-spinner {
+      animation: spin 1s linear infinite;
+    }
+    @keyframes spin {
+      from { transform: rotate(0deg); }
+      to { transform: rotate(360deg); }
     }
     .fade-in {
-      animation: fadeIn 0.5s ease-in;
+      animation: fadeIn 0.3s ease-in;
     }
     @keyframes fadeIn {
-      from { opacity: 0; transform: translateY(20px); }
+      from { opacity: 0; transform: translateY(10px); }
       to { opacity: 1; transform: translateY(0); }
+    }
+    .notification {
+      position: fixed;
+      top: 20px;
+      right: 20px;
+      z-index: 1000;
+      animation: slideIn 0.3s ease-out;
+    }
+    @keyframes slideIn {
+      from { transform: translateX(100%); opacity: 0; }
+      to { transform: translateX(0); opacity: 1; }
     }
   </style>
 </head>
-<body class="gradient-bg min-h-screen">
-  <div class="container mx-auto px-4 py-8">
-    <!-- Header -->
-    <div class="text-center mb-8 fade-in">
-      <h1 class="text-4xl font-bold text-white mb-2">🐒 TempMonkeyMail</h1>
-      <p class="text-white/80 text-lg">Free Disposable Email Service</p>
-    </div>
+<body>
+  <div class="email-container">
+    <div class="container mx-auto px-4 py-8">
+      <!-- Header -->
+      <div class="text-center mb-8">
+        <h1 class="text-3xl font-bold text-white mb-2">🐒 TempMonkeyMail</h1>
+        <p class="text-white/80">Free Temporary Email Service</p>
+      </div>
 
-    <!-- Main Card -->
-    <div class="glass-effect rounded-3xl shadow-2xl p-8 max-w-2xl mx-auto fade-in">
-      <!-- Email Generation Section -->
-      <div class="mb-8">
-        <div class="flex items-center justify-between mb-6">
-          <div class="flex-1">
-            <label class="block text-sm font-medium text-gray-700 mb-2">Your Temporary Email</label>
-            <div class="relative">
-              <input 
-                type="text" 
-                id="emailAddress" 
-                readonly 
-                placeholder="Click 'Generate Email' to create your temporary email"
-                class="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-gray-700 font-mono text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              >
-              <button 
-                onclick="copyEmail()" 
-                class="absolute right-2 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors"
-                title="Copy to clipboard"
-              >
-                📋
-              </button>
+      <!-- Main Content -->
+      <div class="max-w-4xl mx-auto">
+        <div class="main-card p-6 mb-6">
+          <!-- Email Generation Section -->
+          <div class="mb-6">
+            <div class="flex items-center space-x-4">
+              <div class="flex-1">
+                <label class="block text-sm font-medium text-gray-700 mb-2">Your Temporary Email Address</label>
+                <div class="relative">
+                  <input 
+                    type="text" 
+                    id="emailAddress" 
+                    readonly 
+                    placeholder="Click 'Generate Email' to create your temporary email"
+                    class="email-input w-full px-4 py-3 text-gray-700 font-mono text-sm focus:outline-none"
+                  >
+                  <button 
+                    onclick="copyEmail()" 
+                    class="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors"
+                    title="Copy to clipboard"
+                  >
+                    📋
+                  </button>
+                </div>
+              </div>
+              <div class="flex space-x-2">
+                <button 
+                  onclick="generateEmail()" 
+                  id="generateBtn"
+                  class="btn-primary text-white px-6 py-3 rounded-lg font-medium flex items-center space-x-2"
+                >
+                  <span id="generateText">Generate Email</span>
+                  <span id="generateIcon">✨</span>
+                </button>
+                <button 
+                  onclick="refreshInbox()" 
+                  id="refreshBtn"
+                  class="btn-secondary text-gray-700 px-4 py-3 rounded-lg font-medium flex items-center space-x-2"
+                  disabled
+                >
+                  <span id="refreshIcon">🔄</span>
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Stats Section -->
+          <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+            <div class="bg-blue-50 p-4 rounded-lg">
+              <div class="text-2xl font-bold text-blue-600" id="totalEmails">0</div>
+              <div class="text-sm text-blue-600">Total Emails</div>
+            </div>
+            <div class="bg-green-50 p-4 rounded-lg">
+              <div class="text-2xl font-bold text-green-600" id="unreadEmails">0</div>
+              <div class="text-sm text-green-600">Unread</div>
+            </div>
+            <div class="bg-purple-50 p-4 rounded-lg">
+              <div class="text-2xl font-bold text-purple-600" id="emailAge">0m</div>
+              <div class="text-sm text-purple-600">Email Age</div>
             </div>
           </div>
         </div>
-        
-        <div class="flex gap-4">
-          <button 
-            onclick="generateEmail()" 
-            id="generateBtn"
-            class="btn-primary text-white px-6 py-3 rounded-xl font-medium flex items-center gap-2"
-          >
-            <span id="generateText">Generate Email</span>
-            <span id="generateIcon">✨</span>
-          </button>
-          
-          <button 
-            onclick="refreshInbox()" 
-            id="refreshBtn"
-            class="btn-secondary text-white px-6 py-3 rounded-xl font-medium flex items-center gap-2"
-            disabled
-          >
-            <span id="refreshText">Refresh</span>
-            <span id="refreshIcon">🔄</span>
-          </button>
-        </div>
-      </div>
 
-      <!-- Inbox Section -->
-      <div>
-        <div class="flex items-center justify-between mb-4">
-          <h2 class="text-xl font-semibold text-gray-800">Inbox</h2>
-          <span id="messageCount" class="text-sm text-gray-500">0 messages</span>
-        </div>
-        
-        <div id="inbox" class="space-y-3">
-          <div class="text-center py-8 text-gray-500">
-            <div class="text-4xl mb-2">📬</div>
-            <p>No emails yet. Generate an email address to start receiving messages!</p>
+        <!-- Inbox Section -->
+        <div class="main-card p-6">
+          <div class="flex items-center justify-between mb-4">
+            <h2 class="text-xl font-semibold text-gray-800">Inbox</h2>
+            <div class="flex items-center space-x-4">
+              <span class="text-sm text-gray-500" id="lastRefresh">Never refreshed</span>
+              <button 
+                onclick="toggleAutoRefresh()" 
+                id="autoRefreshBtn"
+                class="text-sm text-blue-600 hover:text-blue-700"
+              >
+                Auto-refresh: <span id="autoRefreshStatus">Off</span>
+              </button>
+            </div>
+          </div>
+          
+          <div id="inbox" class="space-y-3">
+            <div class="text-center py-12 text-gray-500">
+              <div class="text-6xl mb-4">📬</div>
+              <p class="text-lg mb-2">No emails yet</p>
+              <p class="text-sm">Generate an email address to start receiving messages!</p>
+            </div>
           </div>
         </div>
       </div>
-    </div>
 
-    <!-- Footer -->
-    <div class="text-center mt-8 text-white/60 text-sm">
-      <p>Secure • Anonymous • Free</p>
+      <!-- Footer -->
+      <div class="text-center mt-8 text-white/60 text-sm">
+        <p>Secure • Anonymous • Free • No Registration Required</p>
+      </div>
     </div>
   </div>
 
   <script>
     let token = "", address = "";
     let refreshInterval = null;
+    let autoRefreshEnabled = false;
+    let emailGeneratedTime = null;
+    let unreadCount = 0;
 
     async function generateEmail() {
       const btn = document.getElementById('generateBtn');
@@ -150,19 +209,19 @@
       btn.disabled = true;
       text.textContent = 'Generating...';
       icon.textContent = '⏳';
-      btn.classList.add('loading');
+      icon.classList.add('loading-spinner');
 
       try {
         const res = await fetch("/api/generate");
         const data = await res.json();
         token = data.token;
         address = data.address;
+        emailGeneratedTime = new Date();
         
         document.getElementById("emailAddress").value = address;
         
-        // Enable refresh button and start auto-refresh
+        // Enable refresh button
         document.getElementById('refreshBtn').disabled = false;
-        startAutoRefresh();
         
         // Load initial inbox
         await loadInbox();
@@ -170,23 +229,29 @@
         // Show success state
         text.textContent = 'Generated!';
         icon.textContent = '✅';
+        icon.classList.remove('loading-spinner');
+        
         setTimeout(() => {
           text.textContent = 'Generate New';
           icon.textContent = '✨';
           btn.disabled = false;
-          btn.classList.remove('loading');
         }, 1000);
+        
+        showNotification('Email address generated successfully!', 'success');
         
       } catch (error) {
         console.error('Error generating email:', error);
         text.textContent = 'Error!';
         icon.textContent = '❌';
+        icon.classList.remove('loading-spinner');
+        
         setTimeout(() => {
           text.textContent = 'Generate Email';
           icon.textContent = '✨';
           btn.disabled = false;
-          btn.classList.remove('loading');
         }, 2000);
+        
+        showNotification('Failed to generate email. Please try again.', 'error');
       }
     }
 
@@ -197,27 +262,32 @@
         const res = await fetch(`/api/messages?token=${token}`);
         const messages = await res.json();
         const inbox = document.getElementById("inbox");
-        const messageCount = document.getElementById("messageCount");
         
-        messageCount.textContent = `${messages.length} message${messages.length !== 1 ? 's' : ''}`;
+        updateStats(messages);
+        updateLastRefresh();
         
         if (messages.length === 0) {
           inbox.innerHTML = `
-            <div class="text-center py-8 text-gray-500">
-              <div class="text-4xl mb-2">📬</div>
-              <p>No emails yet. They'll appear here when received!</p>
+            <div class="text-center py-12 text-gray-500">
+              <div class="text-6xl mb-4">📬</div>
+              <p class="text-lg mb-2">No emails yet</p>
+              <p class="text-sm">Emails will appear here when received!</p>
             </div>
           `;
           return;
         }
         
-        inbox.innerHTML = messages.map(msg => `
-          <div class="email-card bg-white rounded-xl p-4 border border-gray-100">
+        inbox.innerHTML = messages.map((msg, index) => `
+          <div class="email-item p-4 ${index < unreadCount ? 'unread' : ''}" onclick="viewEmail('${msg.id}')">
             <div class="flex items-start justify-between">
               <div class="flex-1">
-                <div class="font-medium text-gray-900 mb-1">${msg.subject || 'No Subject'}</div>
-                <div class="text-sm text-gray-600 mb-2">From: ${msg.from.address}</div>
-                <div class="text-xs text-gray-500">${new Date(msg.date).toLocaleString()}</div>
+                <div class="flex items-center space-x-2 mb-1">
+                  <span class="font-medium text-gray-900">${msg.subject || 'No Subject'}</span>
+                  ${index < unreadCount ? '<span class="bg-blue-500 text-white text-xs px-2 py-1 rounded-full">NEW</span>' : ''}
+                </div>
+                <div class="text-sm text-gray-600 mb-1">From: ${msg.from.address}</div>
+                <div class="text-xs text-gray-500">${formatDate(msg.date)}</div>
+                ${msg.text ? `<div class="text-sm text-gray-700 mt-2 line-clamp-2">${msg.text.substring(0, 150)}${msg.text.length > 150 ? '...' : ''}</div>` : ''}
               </div>
               <div class="text-2xl ml-4">📧</div>
             </div>
@@ -226,7 +296,23 @@
         
       } catch (error) {
         console.error('Error loading inbox:', error);
+        showNotification('Failed to load emails. Please try again.', 'error');
       }
+    }
+
+    function updateStats(messages) {
+      document.getElementById('totalEmails').textContent = messages.length;
+      document.getElementById('unreadEmails').textContent = unreadCount;
+      
+      if (emailGeneratedTime) {
+        const age = Math.floor((new Date() - emailGeneratedTime) / 60000);
+        document.getElementById('emailAge').textContent = `${age}m`;
+      }
+    }
+
+    function updateLastRefresh() {
+      const now = new Date();
+      document.getElementById('lastRefresh').textContent = `Last refreshed: ${now.toLocaleTimeString()}`;
     }
 
     async function refreshInbox() {
@@ -234,25 +320,54 @@
       const icon = document.getElementById('refreshIcon');
       
       btn.disabled = true;
-      icon.textContent = '⏳';
+      icon.classList.add('loading-spinner');
       
       await loadInbox();
       
-      icon.textContent = '✅';
-      setTimeout(() => {
-        icon.textContent = '🔄';
-        btn.disabled = false;
-      }, 1000);
+      icon.classList.remove('loading-spinner');
+      btn.disabled = false;
+      
+      showNotification('Inbox refreshed!', 'success');
+    }
+
+    function toggleAutoRefresh() {
+      autoRefreshEnabled = !autoRefreshEnabled;
+      const status = document.getElementById('autoRefreshStatus');
+      
+      if (autoRefreshEnabled) {
+        status.textContent = 'On';
+        startAutoRefresh();
+        showNotification('Auto-refresh enabled', 'success');
+      } else {
+        status.textContent = 'Off';
+        stopAutoRefresh();
+        showNotification('Auto-refresh disabled', 'info');
+      }
     }
 
     function startAutoRefresh() {
-      // Clear existing interval
       if (refreshInterval) {
         clearInterval(refreshInterval);
       }
+      refreshInterval = setInterval(loadInbox, 10000); // Refresh every 10 seconds
+    }
+
+    function stopAutoRefresh() {
+      if (refreshInterval) {
+        clearInterval(refreshInterval);
+        refreshInterval = null;
+      }
+    }
+
+    function formatDate(dateString) {
+      const date = new Date(dateString);
+      const now = new Date();
+      const diff = now - date;
       
-      // Start new interval - refresh every 10 seconds
-      refreshInterval = setInterval(loadInbox, 10000);
+      if (diff < 60000) return 'Just now';
+      if (diff < 3600000) return `${Math.floor(diff / 60000)}m ago`;
+      if (diff < 86400000) return `${Math.floor(diff / 3600000)}h ago`;
+      return date.toLocaleDateString();
     }
 
     async function copyEmail() {
@@ -276,11 +391,21 @@
       }
     }
 
+    function viewEmail(emailId) {
+      // This would open a modal or navigate to email detail view
+      showNotification('Email detail view - coming soon!', 'info');
+    }
+
     function showNotification(message, type = 'info') {
+      // Remove existing notifications
+      const existingNotifications = document.querySelectorAll('.notification');
+      existingNotifications.forEach(notification => notification.remove());
+      
       // Create notification element
       const notification = document.createElement('div');
-      notification.className = `fixed top-4 right-4 px-6 py-3 rounded-xl text-white font-medium z-50 fade-in ${
+      notification.className = `notification px-6 py-3 rounded-lg text-white font-medium ${
         type === 'success' ? 'bg-green-500' : 
+        type === 'error' ? 'bg-red-500' : 
         type === 'warning' ? 'bg-yellow-500' : 'bg-blue-500'
       }`;
       notification.textContent = message;
@@ -295,15 +420,24 @@
 
     // Initialize
     document.addEventListener('DOMContentLoaded', function() {
-      // Add some nice hover effects
-      const cards = document.querySelectorAll('.email-card');
-      cards.forEach(card => {
-        card.addEventListener('mouseenter', function() {
-          this.style.transform = 'translateY(-2px)';
-        });
-        card.addEventListener('mouseleave', function() {
-          this.style.transform = 'translateY(0)';
-        });
+      // Add keyboard shortcuts
+      document.addEventListener('keydown', function(e) {
+        if (e.ctrlKey || e.metaKey) {
+          switch(e.key) {
+            case 'r':
+              e.preventDefault();
+              if (!document.getElementById('refreshBtn').disabled) {
+                refreshInbox();
+              }
+              break;
+            case 'g':
+              e.preventDefault();
+              if (!document.getElementById('generateBtn').disabled) {
+                generateEmail();
+              }
+              break;
+          }
+        }
       });
     });
   </script>
