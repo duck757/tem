@@ -1,56 +1,61 @@
 const express = require('express');
-const path = require('path');
 const fetch = require('node-fetch');
+const cors = require('cors');
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// 1. Serve static frontend from /public
-app.use(express.static(path.join(__dirname, 'public')));
+app.use(cors());
+app.use(express.json());
 
-// 2. Serve index.html at root path "/"
-app.get('/', (req, res) => {
-  res.sendFile(path.join(__dirname, 'public/index.html'));
-});
+let domainCache = null;
 
-// 3. API: Health check
-app.get('/api/status', (req, res) => {
-  res.json({ status: 'ok' });
-});
-
-// 4. API: Generate new temp email
+// 1. Generate new email
 app.get('/api/generate', async (req, res) => {
   try {
-    const r = await fetch('https://api.mail.tm/domains');
-    const data = await r.json();
-    const domain = data['hydra:member'][0].domain;
+    if (!domainCache) {
+      const domainsRes = await fetch('https://api.mail.tm/domains');
+      const domains = await domainsRes.json();
+      domainCache = domains['hydra:member'][0].domain;
+    }
 
-    const username = Math.random().toString(36).substring(2, 11);
-    const email = `${username}@${domain}`;
-    res.json({ email });
+    const random = Math.random().toString(36).substring(2, 10);
+    const address = `${random}@${domainCache}`;
+    const password = 'tempmail123';
+
+    const registerRes = await fetch('https://api.mail.tm/accounts', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ address, password })
+    });
+
+    if (!registerRes.ok) throw new Error('Account creation failed');
+    await registerRes.json();
+
+    const tokenRes = await fetch('https://api.mail.tm/token', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ address, password })
+    });
+
+    const tokenData = await tokenRes.json();
+    res.json({ address, token: tokenData.token });
   } catch (err) {
     res.status(500).json({ error: 'Failed to generate email' });
   }
 });
 
-// 5. API: Fetch inbox messages
-app.get('/api/inbox', async (req, res) => {
-  const token = req.query.token;
-  if (!token) return res.status(400).json({ error: 'Token missing' });
-
+// 2. Fetch messages
+app.get('/api/messages', async (req, res) => {
+  const { email, token } = req.query;
   try {
-    const r = await fetch('https://api.mail.tm/messages', {
-      headers: {
-        Authorization: `Bearer ${token}`
-      }
+    const msgRes = await fetch('https://api.mail.tm/messages', {
+      headers: { Authorization: `Bearer ${token}` }
     });
-    const messages = await r.json();
-    res.json(messages);
+    const msgData = await msgRes.json();
+    res.json(msgData['hydra:member']);
   } catch (err) {
-    res.status(500).json({ error: 'Inbox fetch failed' });
+    res.status(500).json({ error: 'Failed to load messages' });
   }
 });
 
-// Start the server
-app.listen(PORT, () => {
-  console.log(`✅ Server running on port ${PORT}`);
-});
+app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
