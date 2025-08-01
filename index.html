@@ -1,56 +1,311 @@
 <!DOCTYPE html>
-<html lang="en" class="bg-gray-100">
+<html lang="en">
 <head>
-<meta name="google-site-verification" content="tberrq2w_BrhcvBXoMjM8tHwcZEVkonogQprQiu91wk" />
+  <meta name="google-site-verification" content="tberrq2w_BrhcvBXoMjM8tHwcZEVkonogQprQiu91wk" />
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <meta name="description" content="TempMonkeyMail - Free Disposable Email Tool">
   <title>TempMonkeyMail</title>
-  <script src="https://cdn.tailwindcss.com?plugins=forms"></script>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    body { font-family: 'Inter', sans-serif; }
+    .gradient-bg {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    }
+    .glass-effect {
+      background: rgba(255, 255, 255, 0.95);
+      backdrop-filter: blur(10px);
+      border: 1px solid rgba(255, 255, 255, 0.2);
+    }
+    .email-card {
+      transition: all 0.3s ease;
+      border: 1px solid rgba(255, 255, 255, 0.1);
+    }
+    .email-card:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
+    }
+    .btn-primary {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      transition: all 0.3s ease;
+    }
+    .btn-primary:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 10px 20px rgba(102, 126, 234, 0.3);
+    }
+    .btn-secondary {
+      background: rgba(255, 255, 255, 0.1);
+      border: 1px solid rgba(255, 255, 255, 0.2);
+      transition: all 0.3s ease;
+    }
+    .btn-secondary:hover {
+      background: rgba(255, 255, 255, 0.2);
+      transform: translateY(-1px);
+    }
+    .loading {
+      animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+    }
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.5; }
+    }
+    .fade-in {
+      animation: fadeIn 0.5s ease-in;
+    }
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(20px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+  </style>
 </head>
-<body class="flex items-center justify-center min-h-screen p-4">
-  <div class="bg-white rounded-2xl shadow-lg p-6 max-w-xl w-full">
-    <h1 class="text-2xl font-bold text-gray-800 mb-4 text-center">🐒 TempMonkeyMail</h1>
-    <div class="flex items-center justify-between mb-4">
-      <span id="emailAddress" class="font-mono text-sm text-gray-600">Click to generate</span>
-      <button onclick="generateEmail()" class="bg-green-500 hover:bg-green-600 text-white px-4 py-1 rounded">
-        Generate
-      </button>
+<body class="gradient-bg min-h-screen">
+  <div class="container mx-auto px-4 py-8">
+    <!-- Header -->
+    <div class="text-center mb-8 fade-in">
+      <h1 class="text-4xl font-bold text-white mb-2">🐒 TempMonkeyMail</h1>
+      <p class="text-white/80 text-lg">Free Disposable Email Service</p>
     </div>
-    <button onclick="copyEmail()" class="text-sm text-blue-500 mb-4">📋 Copy Email</button>
-    <div>
-      <h2 class="text-lg font-semibold mb-2">Inbox</h2>
-      <ul id="inbox" class="text-sm text-gray-700 space-y-2"></ul>
+
+    <!-- Main Card -->
+    <div class="glass-effect rounded-3xl shadow-2xl p-8 max-w-2xl mx-auto fade-in">
+      <!-- Email Generation Section -->
+      <div class="mb-8">
+        <div class="flex items-center justify-between mb-6">
+          <div class="flex-1">
+            <label class="block text-sm font-medium text-gray-700 mb-2">Your Temporary Email</label>
+            <div class="relative">
+              <input 
+                type="text" 
+                id="emailAddress" 
+                readonly 
+                placeholder="Click 'Generate Email' to create your temporary email"
+                class="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-gray-700 font-mono text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              >
+              <button 
+                onclick="copyEmail()" 
+                class="absolute right-2 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors"
+                title="Copy to clipboard"
+              >
+                📋
+              </button>
+            </div>
+          </div>
+        </div>
+        
+        <div class="flex gap-4">
+          <button 
+            onclick="generateEmail()" 
+            id="generateBtn"
+            class="btn-primary text-white px-6 py-3 rounded-xl font-medium flex items-center gap-2"
+          >
+            <span id="generateText">Generate Email</span>
+            <span id="generateIcon">✨</span>
+          </button>
+          
+          <button 
+            onclick="refreshInbox()" 
+            id="refreshBtn"
+            class="btn-secondary text-white px-6 py-3 rounded-xl font-medium flex items-center gap-2"
+            disabled
+          >
+            <span id="refreshText">Refresh</span>
+            <span id="refreshIcon">🔄</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- Inbox Section -->
+      <div>
+        <div class="flex items-center justify-between mb-4">
+          <h2 class="text-xl font-semibold text-gray-800">Inbox</h2>
+          <span id="messageCount" class="text-sm text-gray-500">0 messages</span>
+        </div>
+        
+        <div id="inbox" class="space-y-3">
+          <div class="text-center py-8 text-gray-500">
+            <div class="text-4xl mb-2">📬</div>
+            <p>No emails yet. Generate an email address to start receiving messages!</p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Footer -->
+    <div class="text-center mt-8 text-white/60 text-sm">
+      <p>Secure • Anonymous • Free</p>
     </div>
   </div>
+
   <script>
     let token = "", address = "";
+    let refreshInterval = null;
 
     async function generateEmail() {
-      const res = await fetch("/api/generate");
-      const data = await res.json();
-      token = data.token;
-      address = data.address;
-      document.getElementById("emailAddress").textContent = address;
-      loadInbox();
+      const btn = document.getElementById('generateBtn');
+      const text = document.getElementById('generateText');
+      const icon = document.getElementById('generateIcon');
+      
+      // Show loading state
+      btn.disabled = true;
+      text.textContent = 'Generating...';
+      icon.textContent = '⏳';
+      btn.classList.add('loading');
+
+      try {
+        const res = await fetch("/api/generate");
+        const data = await res.json();
+        token = data.token;
+        address = data.address;
+        
+        document.getElementById("emailAddress").value = address;
+        
+        // Enable refresh button and start auto-refresh
+        document.getElementById('refreshBtn').disabled = false;
+        startAutoRefresh();
+        
+        // Load initial inbox
+        await loadInbox();
+        
+        // Show success state
+        text.textContent = 'Generated!';
+        icon.textContent = '✅';
+        setTimeout(() => {
+          text.textContent = 'Generate New';
+          icon.textContent = '✨';
+          btn.disabled = false;
+          btn.classList.remove('loading');
+        }, 1000);
+        
+      } catch (error) {
+        console.error('Error generating email:', error);
+        text.textContent = 'Error!';
+        icon.textContent = '❌';
+        setTimeout(() => {
+          text.textContent = 'Generate Email';
+          icon.textContent = '✨';
+          btn.disabled = false;
+          btn.classList.remove('loading');
+        }, 2000);
+      }
     }
 
     async function loadInbox() {
-      const res = await fetch(`/api/messages?token=${token}`);
-      const messages = await res.json();
-      const inbox = document.getElementById("inbox");
-      inbox.innerHTML = "";
-      messages.forEach(msg => {
-        const item = document.createElement("li");
-        item.textContent = `${msg.from.address} — ${msg.subject}`;
-        inbox.appendChild(item);
-      });
+      if (!token) return;
+      
+      try {
+        const res = await fetch(`/api/messages?token=${token}`);
+        const messages = await res.json();
+        const inbox = document.getElementById("inbox");
+        const messageCount = document.getElementById("messageCount");
+        
+        messageCount.textContent = `${messages.length} message${messages.length !== 1 ? 's' : ''}`;
+        
+        if (messages.length === 0) {
+          inbox.innerHTML = `
+            <div class="text-center py-8 text-gray-500">
+              <div class="text-4xl mb-2">📬</div>
+              <p>No emails yet. They'll appear here when received!</p>
+            </div>
+          `;
+          return;
+        }
+        
+        inbox.innerHTML = messages.map(msg => `
+          <div class="email-card bg-white rounded-xl p-4 border border-gray-100">
+            <div class="flex items-start justify-between">
+              <div class="flex-1">
+                <div class="font-medium text-gray-900 mb-1">${msg.subject || 'No Subject'}</div>
+                <div class="text-sm text-gray-600 mb-2">From: ${msg.from.address}</div>
+                <div class="text-xs text-gray-500">${new Date(msg.date).toLocaleString()}</div>
+              </div>
+              <div class="text-2xl ml-4">📧</div>
+            </div>
+          </div>
+        `).join('');
+        
+      } catch (error) {
+        console.error('Error loading inbox:', error);
+      }
     }
 
-    function copyEmail() {
-      if (!address) return alert("No email generated!");
-      navigator.clipboard.writeText(address).then(() => alert("Copied!"));
+    async function refreshInbox() {
+      const btn = document.getElementById('refreshBtn');
+      const icon = document.getElementById('refreshIcon');
+      
+      btn.disabled = true;
+      icon.textContent = '⏳';
+      
+      await loadInbox();
+      
+      icon.textContent = '✅';
+      setTimeout(() => {
+        icon.textContent = '🔄';
+        btn.disabled = false;
+      }, 1000);
     }
+
+    function startAutoRefresh() {
+      // Clear existing interval
+      if (refreshInterval) {
+        clearInterval(refreshInterval);
+      }
+      
+      // Start new interval - refresh every 10 seconds
+      refreshInterval = setInterval(loadInbox, 10000);
+    }
+
+    async function copyEmail() {
+      if (!address) {
+        showNotification('Generate an email first!', 'warning');
+        return;
+      }
+      
+      try {
+        await navigator.clipboard.writeText(address);
+        showNotification('Email copied to clipboard!', 'success');
+      } catch (error) {
+        // Fallback for older browsers
+        const textArea = document.createElement('textarea');
+        textArea.value = address;
+        document.body.appendChild(textArea);
+        textArea.select();
+        document.execCommand('copy');
+        document.body.removeChild(textArea);
+        showNotification('Email copied to clipboard!', 'success');
+      }
+    }
+
+    function showNotification(message, type = 'info') {
+      // Create notification element
+      const notification = document.createElement('div');
+      notification.className = `fixed top-4 right-4 px-6 py-3 rounded-xl text-white font-medium z-50 fade-in ${
+        type === 'success' ? 'bg-green-500' : 
+        type === 'warning' ? 'bg-yellow-500' : 'bg-blue-500'
+      }`;
+      notification.textContent = message;
+      
+      document.body.appendChild(notification);
+      
+      // Remove after 3 seconds
+      setTimeout(() => {
+        notification.remove();
+      }, 3000);
+    }
+
+    // Initialize
+    document.addEventListener('DOMContentLoaded', function() {
+      // Add some nice hover effects
+      const cards = document.querySelectorAll('.email-card');
+      cards.forEach(card => {
+        card.addEventListener('mouseenter', function() {
+          this.style.transform = 'translateY(-2px)';
+        });
+        card.addEventListener('mouseleave', function() {
+          this.style.transform = 'translateY(0)';
+        });
+      });
+    });
   </script>
 </body>
 </html>
