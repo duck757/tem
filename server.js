@@ -2,7 +2,7 @@ const express = require('express');
 const fetch = require('node-fetch');
 const path = require('path');
 const app = express();
-const PORT = process.env.PORT || 3000;
+const PORT = process.env.PORT || 5000;
 
 // Memory optimization for 512MB VPS
 const MAX_SESSIONS = 50; // Reduced from 100 for 512MB VPS
@@ -186,7 +186,7 @@ app.get('/api/generate', async (req, res) => {
 });
 
 // Get individual message content
-app.get('/api/message/:id', async (req, res) => {
+app.get('/api/messages/:id', async (req, res) => {
   try {
     const { token } = req.query;
     const { id } = req.params;
@@ -257,7 +257,7 @@ app.get('/api/messages', async (req, res) => {
   }
 });
 
-app.delete('/api/message/:id', async (req, res) => {
+app.delete('/api/messages/:id', async (req, res) => {
   try {
     const { token } = req.query;
     const { id } = req.params;
