@@ -318,6 +318,8 @@
           return;
         }
 
+        console.log('Loaded messages:', messages); // Debug log
+
         currentMessages = messages;
         document.getElementById('messageCount').textContent = `${messages.length} message${messages.length !== 1 ? 's' : ''}`;
 
@@ -336,25 +338,47 @@
           return;
         }
 
-        inbox.innerHTML = messages.map((msg, index) => `
-          <div class="email-card bg-white rounded-xl p-4 border border-gray-100 slide-in" onclick="viewEmail(${index})" style="cursor: pointer;">
-            <div class="flex items-start justify-between">
-              <div class="flex-1 min-w-0">
-                <div class="flex items-center gap-2 mb-2">
-                  <div class="font-medium text-gray-900 truncate">${msg.subject || 'No Subject'}</div>
-                  ${msg.seen ? '' : '<span class="bg-blue-500 text-white text-xs px-2 py-1 rounded-full">NEW</span>'}
+        inbox.innerHTML = messages.map((msg, index) => {
+          // Get email content for preview
+          let previewText = '';
+          if (msg.text) {
+            previewText = msg.text;
+          } else if (msg.html) {
+            // Strip HTML tags for preview
+            const tempDiv = document.createElement('div');
+            tempDiv.innerHTML = msg.html;
+            previewText = tempDiv.textContent || tempDiv.innerText || '';
+          } else if (msg.intro) {
+            previewText = msg.intro;
+          } else {
+            previewText = 'Email content available - click to view';
+          }
+          
+          // Truncate preview text
+          if (previewText.length > 150) {
+            previewText = previewText.substring(0, 150) + '...';
+          }
+          
+          return `
+            <div class="email-card bg-white rounded-xl p-4 border border-gray-100 slide-in" onclick="viewEmail(${index})" style="cursor: pointer;">
+              <div class="flex items-start justify-between">
+                <div class="flex-1 min-w-0">
+                  <div class="flex items-center gap-2 mb-2">
+                    <div class="font-medium text-gray-900 truncate">${msg.subject || 'No Subject'}</div>
+                    ${msg.seen ? '' : '<span class="bg-blue-500 text-white text-xs px-2 py-1 rounded-full">NEW</span>'}
+                  </div>
+                  <div class="text-sm text-gray-600 mb-1 truncate">From: ${msg.from?.address || 'Unknown sender'}</div>
+                  <div class="email-preview text-sm text-gray-500">${previewText}</div>
+                  <div class="text-xs text-gray-400 mt-2">${formatDate(msg.date)}</div>
                 </div>
-                <div class="text-sm text-gray-600 mb-1 truncate">From: ${msg.from.address}</div>
-                <div class="email-preview text-sm text-gray-500">${msg.text || msg.html || 'No content preview available'}</div>
-                <div class="text-xs text-gray-400 mt-2">${formatDate(msg.date)}</div>
-              </div>
-              <div class="flex items-center gap-2 ml-4">
-                <i class="fas fa-envelope text-gray-400"></i>
-                <i class="fas fa-chevron-right text-gray-300"></i>
+                <div class="flex items-center gap-2 ml-4">
+                  <i class="fas fa-envelope text-gray-400"></i>
+                  <i class="fas fa-chevron-right text-gray-300"></i>
+                </div>
               </div>
             </div>
-          </div>
-        `).join('');
+          `;
+        }).join('');
 
       } catch (error) {
         console.error('Error loading inbox:', error);
@@ -422,16 +446,28 @@
       const modal = document.getElementById('emailModal');
       const content = document.getElementById('emailContent');
 
+      // Determine the best content to display
+      let emailContent = '';
+      if (message.html) {
+        emailContent = message.html;
+      } else if (message.text) {
+        emailContent = `<pre class="whitespace-pre-wrap text-sm font-sans">${message.text}</pre>`;
+      } else if (message.intro) {
+        emailContent = `<div class="text-sm">${message.intro}</div>`;
+      } else {
+        emailContent = '<div class="text-gray-500 italic">No content available for this email</div>';
+      }
+
       content.innerHTML = `
         <div class="space-y-4">
           <div class="border-b pb-4">
             <h4 class="text-lg font-semibold text-gray-800 mb-2">${message.subject || 'No Subject'}</h4>
-            <div class="text-sm text-gray-600 mb-1">From: ${message.from.address}</div>
-            <div class="text-sm text-gray-600 mb-1">To: ${message.to.address}</div>
+            <div class="text-sm text-gray-600 mb-1">From: ${message.from?.address || 'Unknown sender'}</div>
+            <div class="text-sm text-gray-600 mb-1">To: ${message.to?.address || address || 'Unknown recipient'}</div>
             <div class="text-xs text-gray-400">${formatDate(message.date)}</div>
           </div>
           <div class="prose max-w-none">
-            ${message.html ? message.html : `<pre class="whitespace-pre-wrap text-sm">${message.text || 'No content available'}</pre>`}
+            ${emailContent}
           </div>
         </div>
       `;
