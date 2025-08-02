@@ -147,7 +147,7 @@
             </div>
           </div>
         </div>
-        
+
         <div class="flex gap-4 flex-wrap">
           <button 
             onclick="generateEmail()" 
@@ -157,7 +157,7 @@
             <i class="fas fa-magic" id="generateIcon"></i>
             <span id="generateText">Generate Email</span>
           </button>
-          
+
           <button 
             onclick="refreshInbox()" 
             id="refreshBtn"
@@ -203,7 +203,7 @@
             <span class="text-sm text-gray-500">Auto-refresh</span>
           </div>
         </div>
-        
+
         <div id="inbox" class="space-y-3">
           <div class="text-center py-12 text-gray-500">
             <div class="text-6xl mb-4 opacity-50">
@@ -247,7 +247,7 @@
       const btn = document.getElementById('generateBtn');
       const text = document.getElementById('generateText');
       const icon = document.getElementById('generateIcon');
-      
+
       // Show loading state
       btn.disabled = true;
       text.textContent = 'Generating...';
@@ -259,21 +259,21 @@
         const data = await res.json();
         token = data.token;
         address = data.address;
-        
+
         document.getElementById("emailAddress").value = address;
-        
+
         // Enable buttons and start auto-refresh
         document.getElementById('refreshBtn').disabled = false;
         document.getElementById('clearBtn').disabled = false;
         document.getElementById('statusBar').style.display = 'flex';
-        
+
         if (autoRefreshEnabled) {
           startAutoRefresh();
         }
-        
+
         // Load initial inbox
         await loadInbox();
-        
+
         // Show success state
         text.textContent = 'Generated!';
         icon.className = 'fas fa-check';
@@ -283,9 +283,9 @@
           btn.disabled = false;
           btn.classList.remove('loading');
         }, 1000);
-        
+
         showNotification('Email address generated successfully!', 'success');
-        
+
       } catch (error) {
         console.error('Error generating email:', error);
         text.textContent = 'Error!';
@@ -302,17 +302,27 @@
 
     async function loadInbox() {
       if (!token) return;
-      
+
       try {
         const res = await fetch(`/api/messages?token=${token}`);
+
+        if (!res.ok) {
+          throw new Error(`HTTP error! status: ${res.status}`);
+        }
+
         const messages = await res.json();
+
+        if (!Array.isArray(messages)) {
+          console.error('Invalid messages format:', messages);
+          showNotification('Failed to load messages. Invalid format.', 'error');
+          return;
+        }
+
         currentMessages = messages;
-        const inbox = document.getElementById("inbox");
-        const messageCount = document.getElementById("messageCount");
-        
-        messageCount.textContent = `${messages.length} message${messages.length !== 1 ? 's' : ''}`;
-        updateLastRefresh();
-        
+        document.getElementById('messageCount').textContent = `${messages.length} message${messages.length !== 1 ? 's' : ''}`;
+
+        const inbox = document.getElementById('inbox');
+
         if (messages.length === 0) {
           inbox.innerHTML = `
             <div class="text-center py-12 text-gray-500">
@@ -325,7 +335,7 @@
           `;
           return;
         }
-        
+
         inbox.innerHTML = messages.map((msg, index) => `
           <div class="email-card bg-white rounded-xl p-4 border border-gray-100 slide-in" onclick="viewEmail(${index})" style="cursor: pointer;">
             <div class="flex items-start justify-between">
@@ -345,7 +355,7 @@
             </div>
           </div>
         `).join('');
-        
+
       } catch (error) {
         console.error('Error loading inbox:', error);
         showNotification('Failed to load messages. Please try again.', 'error');
@@ -355,18 +365,18 @@
     async function refreshInbox() {
       const btn = document.getElementById('refreshBtn');
       const icon = document.getElementById('refreshIcon');
-      
+
       btn.disabled = true;
       icon.className = 'fas fa-spinner fa-spin';
-      
+
       await loadInbox();
-      
+
       icon.className = 'fas fa-check';
       setTimeout(() => {
         icon.className = 'fas fa-sync-alt';
         btn.disabled = false;
       }, 1000);
-      
+
       showNotification('Inbox refreshed!', 'success');
     }
 
@@ -395,7 +405,7 @@
     function toggleAutoRefresh() {
       autoRefreshEnabled = !autoRefreshEnabled;
       const icon = document.getElementById('autoRefreshIcon');
-      
+
       if (autoRefreshEnabled) {
         icon.className = 'fas fa-toggle-on';
         startAutoRefresh();
@@ -411,7 +421,7 @@
       const message = currentMessages[index];
       const modal = document.getElementById('emailModal');
       const content = document.getElementById('emailContent');
-      
+
       content.innerHTML = `
         <div class="space-y-4">
           <div class="border-b pb-4">
@@ -425,7 +435,7 @@
           </div>
         </div>
       `;
-      
+
       modal.classList.remove('hidden');
     }
 
@@ -440,12 +450,12 @@
       const minutes = Math.floor(diff / 60000);
       const hours = Math.floor(diff / 3600000);
       const days = Math.floor(diff / 86400000);
-      
+
       if (minutes < 1) return 'Just now';
       if (minutes < 60) return `${minutes}m ago`;
       if (hours < 24) return `${hours}h ago`;
       if (days < 7) return `${days}d ago`;
-      
+
       return date.toLocaleDateString();
     }
 
@@ -459,7 +469,7 @@
         showNotification('Generate an email first!', 'warning');
         return;
       }
-      
+
       try {
         await navigator.clipboard.writeText(address);
         showNotification('Email copied to clipboard!', 'success');
@@ -479,7 +489,7 @@
       // Remove existing notifications
       const existing = document.querySelectorAll('.notification-toast');
       existing.forEach(n => n.remove());
-      
+
       // Create notification element
       const notification = document.createElement('div');
       notification.className = `notification notification-toast fixed top-4 right-4 px-6 py-4 rounded-xl text-white font-medium z-50 shadow-lg ${
@@ -487,16 +497,16 @@
         type === 'warning' ? 'bg-yellow-500' : 
         type === 'error' ? 'bg-red-500' : 'bg-blue-500'
       }`;
-      
+
       notification.innerHTML = `
         <div class="flex items-center gap-3">
           <i class="fas fa-${type === 'success' ? 'check-circle' : type === 'warning' ? 'exclamation-triangle' : type === 'error' ? 'times-circle' : 'info-circle'}"></i>
           <span>${message}</span>
         </div>
       `;
-      
+
       document.body.appendChild(notification);
-      
+
       // Remove after 4 seconds
       setTimeout(() => {
         notification.remove();
