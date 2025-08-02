@@ -531,106 +531,140 @@
 
     let currentEmailIndex = -1;
 
-    function viewEmail(index) {
+    async function viewEmail(index) {
       const message = currentMessages[index];
       const modal = document.getElementById('emailModal');
       const content = document.getElementById('emailContent');
       currentEmailIndex = index;
 
-      // Get sender's first letter for avatar
-      const senderName = message.from?.name || message.from?.address || 'Unknown';
-      const senderInitial = senderName.charAt(0).toUpperCase();
-      
-      // Determine the best content to display
-      let emailContent = '';
-      if (message.html) {
-        emailContent = message.html;
-      } else if (message.text) {
-        emailContent = `<div class="whitespace-pre-wrap font-sans leading-relaxed">${message.text}</div>`;
-      } else if (message.intro) {
-        emailContent = `<div class="leading-relaxed">${message.intro}</div>`;
-      } else {
-        emailContent = '<div class="text-gray-500 italic text-center py-8">No content available for this email</div>';
-      }
-
-      // Format the date more like Gmail
-      const emailDate = new Date(message.createdAt || message.date);
-      const formattedDate = emailDate.toLocaleDateString('en-US', { 
-        year: 'numeric', 
-        month: 'short', 
-        day: 'numeric',
-        hour: '2-digit',
-        minute: '2-digit'
-      });
-
+      // Show loading state
       content.innerHTML = `
-        <div class="space-y-6">
-          <!-- Gmail-like Header -->
-          <div class="email-header">
-            <div class="flex items-start justify-between mb-4">
-              <h1 class="text-xl md:text-2xl font-semibold text-gray-900 leading-tight pr-4">${message.subject || 'No Subject'}</h1>
-              ${!message.seen ? '<span class="bg-blue-500 text-white text-xs px-3 py-1 rounded-full flex-shrink-0">UNREAD</span>' : ''}
-            </div>
-            
-            <div class="email-meta">
-              <div class="sender-avatar">
-                ${senderInitial}
-              </div>
-              <div class="flex-1 min-w-0">
-                <div class="flex items-center gap-2 flex-wrap">
-                  <span class="font-medium text-gray-900">${message.from?.name || 'Unknown Sender'}</span>
-                  <span class="text-gray-500 text-sm">&lt;${message.from?.address || 'unknown@email.com'}&gt;</span>
-                </div>
-                <div class="text-sm text-gray-600 mt-1">
-                  <span>to ${message.to?.[0]?.address || address || 'me'}</span>
-                </div>
-              </div>
-              <div class="text-sm text-gray-500 flex-shrink-0">
-                ${formattedDate}
-              </div>
-            </div>
-            
-            ${message.hasAttachments ? `
-              <div class="mt-3 flex items-center gap-2 text-sm text-gray-600">
-                <i class="fas fa-paperclip"></i>
-                <span>This email has attachments</span>
-              </div>
-            ` : ''}
-          </div>
-
-          <!-- Email Body -->
-          <div class="email-body-content">
-            ${emailContent}
-          </div>
-          
-          <!-- Email Actions -->
-          <div class="flex items-center justify-between pt-4 border-t">
-            <div class="flex items-center gap-4">
-              <button onclick="replyToEmail()" class="flex items-center gap-2 px-4 py-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors">
-                <i class="fas fa-reply"></i>
-                <span class="hidden md:inline">Reply</span>
-              </button>
-              <button onclick="forwardEmail()" class="flex items-center gap-2 px-4 py-2 text-gray-600 hover:bg-gray-50 rounded-lg transition-colors">
-                <i class="fas fa-share"></i>
-                <span class="hidden md:inline">Forward</span>
-              </button>
-            </div>
-            <div class="text-sm text-gray-500">
-              Email ID: ${message.id}
-            </div>
+        <div class="flex items-center justify-center py-12">
+          <div class="text-center">
+            <i class="fas fa-spinner fa-spin text-3xl text-blue-500 mb-4"></i>
+            <p class="text-gray-500">Loading email content...</p>
           </div>
         </div>
       `;
-
       modal.classList.remove('hidden');
-      
-      // Mark as read if it was unread
-      if (!message.seen) {
-        message.seen = true;
-        // Update the inbox view to reflect the read status
-        setTimeout(() => {
-          loadInbox();
-        }, 100);
+
+      try {
+        // Fetch full email content from API
+        const response = await fetch(`/api/messages/${message.id}?token=${token}`);
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        
+        const fullMessage = await response.json();
+        
+        // Get sender's first letter for avatar
+        const senderName = fullMessage.from?.name || fullMessage.from?.address || 'Unknown';
+        const senderInitial = senderName.charAt(0).toUpperCase();
+        
+        // Determine the best content to display
+        let emailContent = '';
+        if (fullMessage.html) {
+          emailContent = fullMessage.html;
+        } else if (fullMessage.text) {
+          emailContent = `<div class="whitespace-pre-wrap font-sans leading-relaxed">${fullMessage.text}</div>`;
+        } else if (fullMessage.intro) {
+          emailContent = `<div class="leading-relaxed">${fullMessage.intro}</div>`;
+        } else {
+          emailContent = '<div class="text-gray-500 italic text-center py-8">No content available for this email</div>';
+        }
+
+      // Format the date more like Gmail
+        const emailDate = new Date(fullMessage.createdAt || fullMessage.date);
+        const formattedDate = emailDate.toLocaleDateString('en-US', { 
+          year: 'numeric', 
+          month: 'short', 
+          day: 'numeric',
+          hour: '2-digit',
+          minute: '2-digit'
+        });
+
+        content.innerHTML = `
+          <div class="space-y-6">
+            <!-- Gmail-like Header -->
+            <div class="email-header">
+              <div class="flex items-start justify-between mb-4">
+                <h1 class="text-xl md:text-2xl font-semibold text-gray-900 leading-tight pr-4">${fullMessage.subject || 'No Subject'}</h1>
+                ${!fullMessage.seen ? '<span class="bg-blue-500 text-white text-xs px-3 py-1 rounded-full flex-shrink-0">UNREAD</span>' : ''}
+              </div>
+              
+              <div class="email-meta">
+                <div class="sender-avatar">
+                  ${senderInitial}
+                </div>
+                <div class="flex-1 min-w-0">
+                  <div class="flex items-center gap-2 flex-wrap">
+                    <span class="font-medium text-gray-900">${fullMessage.from?.name || 'Unknown Sender'}</span>
+                    <span class="text-gray-500 text-sm">&lt;${fullMessage.from?.address || 'unknown@email.com'}&gt;</span>
+                  </div>
+                  <div class="text-sm text-gray-600 mt-1">
+                    <span>to ${fullMessage.to?.[0]?.address || address || 'me'}</span>
+                  </div>
+                </div>
+                <div class="text-sm text-gray-500 flex-shrink-0">
+                  ${formattedDate}
+                </div>
+              </div>
+              
+              ${fullMessage.hasAttachments ? `
+                <div class="mt-3 flex items-center gap-2 text-sm text-gray-600">
+                  <i class="fas fa-paperclip"></i>
+                  <span>This email has attachments</span>
+                </div>
+              ` : ''}
+            </div>
+
+            <!-- Email Body -->
+            <div class="email-body-content">
+              ${emailContent}
+            </div>
+            
+            <!-- Email Actions -->
+            <div class="flex items-center justify-between pt-4 border-t">
+              <div class="flex items-center gap-4">
+                <button onclick="replyToEmail()" class="flex items-center gap-2 px-4 py-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors">
+                  <i class="fas fa-reply"></i>
+                  <span class="hidden md:inline">Reply</span>
+                </button>
+                <button onclick="forwardEmail()" class="flex items-center gap-2 px-4 py-2 text-gray-600 hover:bg-gray-50 rounded-lg transition-colors">
+                  <i class="fas fa-share"></i>
+                  <span class="hidden md:inline">Forward</span>
+                </button>
+              </div>
+              <div class="text-sm text-gray-500">
+                Email ID: ${fullMessage.id}
+              </div>
+            </div>
+          </div>
+        `;
+        
+        // Mark as read if it was unread
+        if (!message.seen) {
+          message.seen = true;
+          // Update the inbox view to reflect the read status
+          setTimeout(() => {
+            loadInbox();
+          }, 100);
+        }
+        
+      } catch (error) {
+        console.error('Error fetching full email:', error);
+        content.innerHTML = `
+          <div class="text-center py-12">
+            <div class="text-red-500 text-xl mb-4">
+              <i class="fas fa-exclamation-triangle"></i>
+            </div>
+            <h3 class="text-lg font-medium mb-2 text-gray-900">Failed to load email content</h3>
+            <p class="text-gray-500 mb-4">Unable to fetch the full email content.</p>
+            <button onclick="viewEmail(${index})" class="bg-blue-500 text-white px-4 py-2 rounded-lg hover:bg-blue-600">
+              Try Again
+            </button>
+          </div>
+        `;
       }
     }
 

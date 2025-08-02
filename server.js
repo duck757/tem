@@ -33,11 +33,11 @@ const cleanupSessions = () => {
   const now = Date.now();
   let cleaned = 0;
   const mem = getMemoryUsage();
-  
+
   // Emergency cleanup if memory usage is high
   if (mem.rss > MEMORY_THRESHOLD) {
     console.log(`⚠️  High memory usage detected: ${mem.rss}MB. Performing emergency cleanup...`);
-    
+
     // Remove all sessions older than 30 minutes
     for (const [sessionId, session] of activeSessions.entries()) {
       if (now - session.createdAt > 30 * 60 * 1000) {
@@ -45,14 +45,14 @@ const cleanupSessions = () => {
         cleaned++;
       }
     }
-    
+
     // Force garbage collection if available
     if (global.gc) {
       global.gc();
       console.log('🧹 Forced garbage collection');
     }
   }
-  
+
   // Regular cleanup
   for (const [sessionId, session] of activeSessions.entries()) {
     if (now - session.createdAt > MAX_AGE) {
@@ -60,25 +60,25 @@ const cleanupSessions = () => {
       cleaned++;
     }
   }
-  
+
   // If we have too many sessions, remove oldest ones
   if (activeSessions.size > MAX_SESSIONS) {
     const sessions = Array.from(activeSessions.entries())
       .sort((a, b) => a[1].createdAt - b[1].createdAt);
-    
+
     const toRemove = sessions.slice(0, activeSessions.size - MAX_SESSIONS);
     toRemove.forEach(([sessionId]) => activeSessions.delete(sessionId));
     cleaned += toRemove.length;
   }
-  
+
   if (cleaned > 0) {
     console.log(`🧹 Cleaned up ${cleaned} sessions. Active sessions: ${activeSessions.size}`);
   }
-  
+
   // Log memory usage
   const newMem = getMemoryUsage();
   console.log(`📊 Memory usage: RSS: ${newMem.rss}MB, Heap: ${newMem.heapUsed}/${newMem.heapTotal}MB`);
-  
+
   // Warning if still high
   if (newMem.rss > MEMORY_THRESHOLD * 0.8) {
     console.log(`⚠️  Memory usage still high: ${newMem.rss}MB`);
@@ -110,29 +110,29 @@ app.get('/api/generate', async (req, res) => {
         error: 'Service temporarily overloaded. Please try again in a few minutes.' 
       });
     }
-    
+
     // Check if we're at capacity
     if (activeSessions.size >= MAX_SESSIONS) {
       return res.status(503).json({ 
         error: 'Service temporarily at capacity. Please try again in a few minutes.' 
       });
     }
-    
+
     // Get available domains
     const domainRes = await fetch('https://api.mail.tm/domains', {
       timeout: 5000 // Reduced timeout for 512MB VPS
     });
     const domainData = await domainRes.json();
-    
+
     if (!domainData['hydra:member'] || domainData['hydra:member'].length === 0) {
       return res.status(500).json({ error: 'No domains available' });
     }
-    
+
     const domain = domainData['hydra:member'][0].domain;
     const username = Math.random().toString(36).substring(2, 10);
     const address = `${username}@${domain}`;
     const password = 'TempMail123';
-    
+
     // Create account
     const accountRes = await fetch('https://api.mail.tm/accounts', {
       method: 'POST',
@@ -140,12 +140,12 @@ app.get('/api/generate', async (req, res) => {
       body: JSON.stringify({ address, password }),
       timeout: 5000
     });
-    
+
     if (!accountRes.ok) {
       const error = await accountRes.json();
       return res.status(400).json({ error: 'Failed to create account', details: error });
     }
-    
+
     // Get authentication token
     const tokenRes = await fetch('https://api.mail.tm/token', {
       method: 'POST',
@@ -153,14 +153,14 @@ app.get('/api/generate', async (req, res) => {
       body: JSON.stringify({ address, password }),
       timeout: 5000
     });
-    
+
     if (!tokenRes.ok) {
       return res.status(400).json({ error: 'Failed to authenticate' });
     }
-    
+
     const tokenData = await tokenRes.json();
     const token = tokenData.token;
-    
+
     // Store session with size limit
     const sessionId = Math.random().toString(36).substring(2, 15);
     activeSessions.set(sessionId, { 
@@ -170,7 +170,7 @@ app.get('/api/generate', async (req, res) => {
       lastActivity: Date.now(),
       messageCount: 0 // Track message count per session
     });
-    
+
     res.json({ 
       address, 
       token, 
@@ -178,80 +178,82 @@ app.get('/api/generate', async (req, res) => {
       domain,
       expiresAt: Date.now() + MAX_AGE
     });
-    
+
   } catch (error) {
     console.error('Error generating email:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
 
-app.get('/api/messages', async (req, res) => {
+// Get individual message content
+app.get('/api/message/:id', async (req, res) => {
   try {
-    const { token, sessionId } = req.query;
-    
+    const { token } = req.query;
+    const { id } = req.params;
+
     if (!token) {
       return res.status(400).json({ error: 'Token required' });
     }
-    
+
+    const messageRes = await fetch(`https://api.mail.tm/messages/${id}`, {
+      headers: { Authorization: `Bearer ${token}` },
+      timeout: 5000
+    });
+
+    if (!messageRes.ok) {
+      return res.status(404).json({ error: 'Message not found' });
+    }
+
+    const message = await messageRes.json();
+    res.json(message);
+
+  } catch (error) {
+    console.error('Error fetching message:', error);
+    res.status(500).json({ error: 'Failed to fetch message' });
+  }
+});
+
+// Get messages for a session
+app.get('/api/messages', async (req, res) => {
+  try {
+    const { token, sessionId } = req.query;
+
+    if (!token) {
+      return res.status(400).json({ error: 'Token required' });
+    }
+
     // Update session activity
     if (sessionId && activeSessions.has(sessionId)) {
       const session = activeSessions.get(sessionId);
       session.lastActivity = Date.now();
     }
-    
+
     const messagesRes = await fetch('https://api.mail.tm/messages', {
       headers: { Authorization: `Bearer ${token}` },
       timeout: 5000
     });
-    
+
     if (!messagesRes.ok) {
       return res.status(401).json({ error: 'Invalid token' });
     }
-    
+
     const messagesData = await messagesRes.json();
     const messages = messagesData['hydra:member'] || [];
-    
+
     // Sort messages by date (newest first) and limit to prevent memory issues
     messages.sort((a, b) => new Date(b.date) - new Date(a.date));
     const limitedMessages = messages.slice(0, MAX_MESSAGES_PER_SESSION); // Limit to 25 messages
-    
+
     // Update session message count
     if (sessionId && activeSessions.has(sessionId)) {
       activeSessions.get(sessionId).messageCount = limitedMessages.length;
     }
-    
+
     res.json(limitedMessages);
-    
+
   } catch (error) {
     console.error('Error fetching messages:', error);
     res.status(500).json({ error: 'Failed to fetch messages' });
-  }
-});
-
-app.get('/api/message/:id', async (req, res) => {
-  try {
-    const { token } = req.query;
-    const { id } = req.params;
-    
-    if (!token) {
-      return res.status(400).json({ error: 'Token required' });
-    }
-    
-    const messageRes = await fetch(`https://api.mail.tm/messages/${id}`, {
-      headers: { Authorization: `Bearer ${token}` },
-      timeout: 5000
-    });
-    
-    if (!messageRes.ok) {
-      return res.status(404).json({ error: 'Message not found' });
-    }
-    
-    const message = await messageRes.json();
-    res.json(message);
-    
-  } catch (error) {
-    console.error('Error fetching message:', error);
-    res.status(500).json({ error: 'Failed to fetch message' });
   }
 });
 
@@ -259,23 +261,23 @@ app.delete('/api/message/:id', async (req, res) => {
   try {
     const { token } = req.query;
     const { id } = req.params;
-    
+
     if (!token) {
       return res.status(400).json({ error: 'Token required' });
     }
-    
+
     const deleteRes = await fetch(`https://api.mail.tm/messages/${id}`, {
       method: 'Delete',
       headers: { Authorization: `Bearer ${token}` },
       timeout: 5000
     });
-    
+
     if (!deleteRes.ok) {
       return res.status(400).json({ error: 'Failed to delete message' });
     }
-    
+
     res.json({ success: true });
-    
+
   } catch (error) {
     console.error('Error deleting message:', error);
     res.status(500).json({ error: 'Failed to delete message' });
@@ -288,14 +290,14 @@ app.get('/api/domains', async (req, res) => {
       timeout: 5000
     });
     const domainsData = await domainsRes.json();
-    
+
     if (!domainsRes.ok) {
       return res.status(500).json({ error: 'Failed to fetch domains' });
     }
-    
+
     const domains = domainsData['hydra:member'] || [];
     res.json(domains);
-    
+
   } catch (error) {
     console.error('Error fetching domains:', error);
     res.status(500).json({ error: 'Failed to fetch domains' });
@@ -305,26 +307,26 @@ app.get('/api/domains', async (req, res) => {
 app.get('/api/status', async (req, res) => {
   try {
     const { token } = req.query;
-    
+
     if (!token) {
       return res.status(400).json({ error: 'Token required' });
     }
-    
+
     // Test token validity by trying to fetch messages
     const messagesRes = await fetch('https://api.mail.tm/messages', {
       headers: { Authorization: `Bearer ${token}` },
       timeout: 5000
     });
-    
+
     const isValid = messagesRes.ok;
-    
+
     res.json({ 
       valid: isValid,
       timestamp: Date.now(),
       activeSessions: activeSessions.size,
       maxSessions: MAX_SESSIONS
     });
-    
+
   } catch (error) {
     console.error('Error checking status:', error);
     res.status(500).json({ error: 'Failed to check status' });
