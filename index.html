@@ -6,322 +6,344 @@
   <meta name="description" content="TempMail - Free Disposable Email Service">
   <title>TempMail - Free Disposable Email</title>
   <script src="https://cdn.tailwindcss.com"></script>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
   <style>
     body { 
       font-family: 'Inter', sans-serif; 
+      background: #f8fafc;
+    }
+    .main-container {
+      max-width: 900px;
+      margin: 0 auto;
+      background: white;
+      min-height: 100vh;
+    }
+    .header-section {
       background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      padding: 2rem 1rem;
+      text-align: center;
     }
-    .glass-effect {
-      background: rgba(255, 255, 255, 0.95);
-      backdrop-filter: blur(10px);
-      border: 1px solid rgba(255, 255, 255, 0.2);
+    .email-section {
+      padding: 2rem 1rem;
+      border-bottom: 1px solid #e2e8f0;
     }
-    .email-card {
-      transition: all 0.3s ease;
-      border: 1px solid rgba(229, 231, 235, 0.5);
+    .inbox-section {
+      padding: 2rem 1rem;
     }
-    .email-card:hover {
-      transform: translateY(-2px);
-      box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1);
-      border-color: rgba(59, 130, 246, 0.3);
+    .email-input-container {
+      background: #f8fafc;
+      border: 2px solid #e2e8f0;
+      border-radius: 8px;
+      padding: 1rem;
+      margin-bottom: 1rem;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+    .email-input-container:focus-within {
+      border-color: #3b82f6;
+      box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+    }
+    .email-input {
+      flex: 1;
+      background: transparent;
+      border: none;
+      outline: none;
+      font-size: 16px;
+      color: #1f2937;
+      font-family: 'Courier New', monospace;
     }
     .btn-primary {
-      background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%);
+      background: #3b82f6;
+      color: white;
+      padding: 0.75rem 1.5rem;
+      border-radius: 8px;
+      border: none;
+      font-weight: 500;
+      cursor: pointer;
       transition: all 0.3s ease;
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
     }
     .btn-primary:hover {
+      background: #2563eb;
       transform: translateY(-1px);
-      box-shadow: 0 8px 20px rgba(59, 130, 246, 0.3);
     }
     .btn-secondary {
-      background: rgba(255, 255, 255, 0.1);
-      border: 1px solid rgba(255, 255, 255, 0.2);
+      background: #f1f5f9;
+      color: #64748b;
+      padding: 0.75rem 1.5rem;
+      border-radius: 8px;
+      border: none;
+      font-weight: 500;
+      cursor: pointer;
       transition: all 0.3s ease;
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
     }
     .btn-secondary:hover {
-      background: rgba(255, 255, 255, 0.2);
+      background: #e2e8f0;
+      color: #475569;
+    }
+    .btn-secondary:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+    .email-card {
+      border: 1px solid #e2e8f0;
+      border-radius: 8px;
+      padding: 1rem;
+      margin-bottom: 0.5rem;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      background: white;
+    }
+    .email-card:hover {
+      border-color: #3b82f6;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
       transform: translateY(-1px);
     }
+    .email-card.unread {
+      border-left: 4px solid #3b82f6;
+      background: #fafbff;
+    }
+    .copy-btn {
+      color: #64748b;
+      padding: 0.5rem;
+      cursor: pointer;
+      border-radius: 4px;
+      transition: all 0.2s ease;
+    }
+    .copy-btn:hover {
+      color: #3b82f6;
+      background: #f1f5f9;
+    }
+    .stats-bar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 1rem;
+      padding: 0.75rem 1rem;
+      background: #f8fafc;
+      border-radius: 8px;
+      border: 1px solid #e2e8f0;
+    }
+    .empty-state {
+      text-align: center;
+      padding: 3rem 1rem;
+      color: #64748b;
+    }
+    .empty-state i {
+      font-size: 3rem;
+      color: #cbd5e1;
+      margin-bottom: 1rem;
+    }
+
+    /* Modal styles */
+    .modal-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.5);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 50;
+      padding: 1rem;
+    }
+    .modal-content {
+      background: white;
+      border-radius: 12px;
+      max-width: 800px;
+      width: 100%;
+      max-height: 90vh;
+      overflow: hidden;
+      box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+    }
+    .modal-header {
+      padding: 1.5rem;
+      border-bottom: 1px solid #e2e8f0;
+      display: flex;
+      align-items: center;
+      justify-content: between;
+    }
+    .modal-body {
+      padding: 1.5rem;
+      overflow-y: auto;
+      max-height: calc(90vh - 120px);
+    }
+    .email-meta {
+      background: #f8fafc;
+      padding: 1rem;
+      border-radius: 8px;
+      margin-bottom: 1.5rem;
+      border: 1px solid #e2e8f0;
+    }
+
+    /* Mobile responsiveness */
+    @media (max-width: 768px) {
+      .main-container {
+        margin: 0;
+        border-radius: 0;
+      }
+      .modal-overlay {
+        padding: 0;
+      }
+      .modal-content {
+        border-radius: 0;
+        height: 100vh;
+        max-height: 100vh;
+      }
+      .modal-body {
+        max-height: calc(100vh - 120px);
+      }
+    }
+
+    .notification {
+      position: fixed;
+      top: 1rem;
+      right: 1rem;
+      padding: 1rem 1.5rem;
+      border-radius: 8px;
+      color: white;
+      font-weight: 500;
+      z-index: 100;
+      box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1);
+      animation: slideIn 0.3s ease-out;
+    }
+
+    @keyframes slideIn {
+      from { transform: translateX(100%); opacity: 0; }
+      to { transform: translateX(0); opacity: 1; }
+    }
+
     .loading {
       animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
     }
+
     @keyframes pulse {
       0%, 100% { opacity: 1; }
       50% { opacity: 0.5; }
     }
-    .fade-in {
-      animation: fadeIn 0.5s ease-in;
-    }
-    @keyframes fadeIn {
-      from { opacity: 0; transform: translateY(20px); }
-      to { opacity: 1; transform: translateY(0); }
-    }
-    .slide-in {
-      animation: slideIn 0.3s ease-out;
-    }
-    @keyframes slideIn {
-      from { opacity: 0; transform: translateX(-20px); }
-      to { opacity: 1; transform: translateX(0); }
-    }
-    .notification {
-      animation: slideInRight 0.3s ease-out;
-    }
-    @keyframes slideInRight {
-      from { opacity: 0; transform: translateX(100%); }
-      to { opacity: 1; transform: translateX(0); }
-    }
-    .email-input {
-      background: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%);
-      border: 2px solid #e2e8f0;
-      transition: all 0.3s ease;
-    }
-    .email-input:focus {
-      border-color: #3b82f6;
-      box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
-    }
-    .status-indicator {
-      width: 8px;
-      height: 8px;
-      border-radius: 50%;
-      background: #10b981;
-      animation: pulse 2s infinite;
-    }
-    .unread {
-      border-left: 4px solid #3b82f6;
-      background: rgba(59, 130, 246, 0.05);
-    }
-    .email-preview {
-      max-height: 100px;
-      overflow: hidden;
-      text-overflow: ellipsis;
-      display: -webkit-box;
-      -webkit-line-clamp: 2;
-      -webkit-box-orient: vertical;
-    }
-    
-    /* Mobile optimizations */
-    @media (max-width: 768px) {
-      .email-card {
-        margin: 0 -1rem;
-        border-radius: 0;
-        border-left: none;
-        border-right: none;
-      }
-      
-      .email-card:first-child {
-        border-top: none;
-      }
-      
-      .glass-effect {
-        margin: 0;
-        border-radius: 0;
-        min-height: 100vh;
-      }
-      
-      .container {
-        padding: 0;
-      }
-      
-      .email-content-wrapper {
-        max-height: none;
-        height: auto;
-      }
-    }
-    
-    /* Gmail-like email content styling */
-    .email-header {
-      background: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%);
-      border-radius: 12px;
-      padding: 20px;
-      margin-bottom: 20px;
-      border: 1px solid #e2e8f0;
-    }
-    
-    .email-meta {
-      display: flex;
-      align-items: center;
-      gap: 12px;
-      margin-bottom: 16px;
-      flex-wrap: wrap;
-    }
-    
-    .sender-avatar {
-      width: 40px;
-      height: 40px;
-      border-radius: 50%;
-      background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%);
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      color: white;
-      font-weight: bold;
-      font-size: 16px;
-    }
-    
-    .email-body-content {
-      background: white;
-      border-radius: 12px;
-      padding: 24px;
-      border: 1px solid #f1f5f9;
-      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
-    }
   </style>
 </head>
-<body class="min-h-screen">
-  <div class="container mx-auto px-4 md:px-4 py-4 md:py-8">
+<body>
+  <div class="main-container">
     <!-- Header -->
-    <div class="text-center mb-8 fade-in">
-      <div class="flex items-center justify-center gap-3 mb-4">
-        <div class="w-12 h-12 bg-white rounded-full flex items-center justify-center shadow-lg">
-          <i class="fas fa-envelope text-2xl text-blue-600"></i>
-        </div>
-        <h1 class="text-4xl font-bold text-white">TempMail</h1>
-      </div>
-      <p class="text-white/90 text-lg">Free Disposable Email Service</p>
-      <div class="flex items-center justify-center gap-4 mt-4 text-white/70 text-sm">
-        <span><i class="fas fa-shield-alt mr-1"></i>Secure</span>
-        <span><i class="fas fa-user-secret mr-1"></i>Anonymous</span>
+    <div class="header-section">
+      <h1 class="text-3xl font-bold mb-2">Temporary Email</h1>
+      <p class="text-white/90">Keep your real mailbox clean and secure</p>
+      <div class="flex items-center justify-center gap-6 mt-4 text-sm text-white/80">
+        <span><i class="fas fa-shield-alt mr-1"></i>Anonymous</span>
+        <span><i class="fas fa-clock mr-1"></i>Temporary</span>
         <span><i class="fas fa-gift mr-1"></i>Free</span>
       </div>
     </div>
 
-    <!-- Main Card -->
-    <div class="glass-effect rounded-none md:rounded-3xl shadow-2xl p-4 md:p-8 max-w-4xl mx-auto fade-in">
-      <!-- Email Generation Section -->
-      <div class="mb-8">
-        <div class="flex items-center justify-between mb-6">
-          <div class="flex-1">
-            <label class="block text-sm font-medium text-gray-700 mb-2">
-              <i class="fas fa-at mr-2"></i>Your Temporary Email Address
-            </label>
-            <div class="relative">
-              <input 
-                type="text" 
-                id="emailAddress" 
-                readonly 
-                placeholder="Click 'Generate Email' to create your temporary email"
-                class="email-input w-full px-4 py-4 rounded-xl text-gray-700 font-mono text-sm focus:outline-none"
-              >
-              <button 
-                onclick="copyEmail()" 
-                class="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-blue-600 transition-colors p-2"
-                title="Copy to clipboard"
-              >
-                <i class="fas fa-copy"></i>
-              </button>
-            </div>
-          </div>
+    <!-- Email Generation Section -->
+    <div class="email-section">
+      <div class="email-input-container">
+        <i class="fas fa-envelope text-gray-400"></i>
+        <input 
+          type="text" 
+          id="emailAddress" 
+          readonly 
+          placeholder="Your temporary email address will appear here"
+          class="email-input"
+        >
+        <button 
+          onclick="copyEmail()" 
+          class="copy-btn"
+          title="Copy to clipboard"
+        >
+          <i class="fas fa-copy"></i>
+        </button>
+      </div>
+
+      <div class="flex gap-3 flex-wrap">
+        <button 
+          onclick="generateEmail()" 
+          id="generateBtn"
+          class="btn-primary"
+        >
+          <i class="fas fa-plus" id="generateIcon"></i>
+          <span id="generateText">Generate Email</span>
+        </button>
+
+        <button 
+          onclick="refreshInbox()" 
+          id="refreshBtn"
+          class="btn-secondary"
+          disabled
+        >
+          <i class="fas fa-sync-alt" id="refreshIcon"></i>
+          <span>Refresh</span>
+        </button>
+
+        <button 
+          onclick="clearInbox()" 
+          id="clearBtn"
+          class="btn-secondary"
+          style="color: #ef4444;"
+          disabled
+        >
+          <i class="fas fa-trash"></i>
+          <span>Delete All</span>
+        </button>
+      </div>
+    </div>
+
+    <!-- Inbox Section -->
+    <div class="inbox-section">
+      <div class="stats-bar">
+        <div class="flex items-center gap-2">
+          <i class="fas fa-inbox text-gray-500"></i>
+          <span class="font-medium text-gray-700">Inbox</span>
+          <span id="messageCount" class="bg-blue-100 text-blue-800 px-2 py-1 rounded-full text-sm">0</span>
         </div>
-
-        <div class="flex gap-4 flex-wrap">
-          <button 
-            onclick="generateEmail()" 
-            id="generateBtn"
-            class="btn-primary text-white px-8 py-4 rounded-xl font-medium flex items-center gap-3 shadow-lg"
-          >
-            <i class="fas fa-magic" id="generateIcon"></i>
-            <span id="generateText">Generate Email</span>
+        <div class="flex items-center gap-2">
+          <span class="text-sm text-gray-500">Auto-refresh</span>
+          <button onclick="toggleAutoRefresh()" id="autoRefreshBtn" class="text-gray-400 hover:text-blue-600">
+            <i class="fas fa-toggle-on" id="autoRefreshIcon"></i>
           </button>
+        </div>
+      </div>
 
-          <button 
-            onclick="refreshInbox()" 
-            id="refreshBtn"
-            class="btn-secondary text-white px-6 py-4 rounded-xl font-medium flex items-center gap-3"
-            disabled
-          >
-            <i class="fas fa-sync-alt" id="refreshIcon"></i>
-            <span id="refreshText">Refresh</span>
+      <div id="inbox">
+        <div class="empty-state">
+          <i class="fas fa-inbox"></i>
+          <h3 class="text-lg font-medium mb-2">No messages yet</h3>
+          <p class="text-gray-500">Generate an email address to start receiving messages</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Email Modal -->
+  <div id="emailModal" class="modal-overlay hidden">
+    <div class="modal-content">
+      <div class="modal-header">
+        <div class="flex items-center gap-3 flex-1">
+          <button onclick="closeEmailModal()" class="text-gray-500 hover:text-gray-700 md:hidden">
+            <i class="fas fa-arrow-left"></i>
           </button>
-
-          <button 
-            onclick="clearInbox()" 
-            id="clearBtn"
-            class="bg-red-500 hover:bg-red-600 text-white px-6 py-4 rounded-xl font-medium flex items-center gap-3 transition-all duration-300 shadow-lg"
-            disabled
-          >
+          <h3 class="text-lg font-semibold text-gray-800">Email Details</h3>
+        </div>
+        <div class="flex items-center gap-2">
+          <button onclick="deleteEmail()" class="text-gray-500 hover:text-red-600 p-2 rounded-lg hover:bg-gray-100" title="Delete">
             <i class="fas fa-trash"></i>
-            <span>Clear</span>
+          </button>
+          <button onclick="closeEmailModal()" class="text-gray-500 hover:text-gray-700 p-2 rounded-lg hover:bg-gray-100 hidden md:block">
+            <i class="fas fa-times"></i>
           </button>
         </div>
-
-        <!-- Status Bar -->
-        <div id="statusBar" class="mt-4 flex items-center gap-3 text-sm text-gray-600" style="display: none;">
-          <div class="status-indicator"></div>
-          <span id="statusText">Auto-refresh enabled</span>
-          <span id="lastRefresh" class="text-gray-500"></span>
-        </div>
       </div>
-
-      <!-- Inbox Section -->
-      <div>
-        <div class="flex items-center justify-between mb-6">
-          <div class="flex items-center gap-3">
-            <h2 class="text-xl font-semibold text-gray-800">
-              <i class="fas fa-inbox mr-2"></i>Inbox
-            </h2>
-            <span id="messageCount" class="bg-blue-100 text-blue-800 px-3 py-1 rounded-full text-sm font-medium">0 messages</span>
-          </div>
-          <div class="flex items-center gap-2">
-            <button onclick="toggleAutoRefresh()" id="autoRefreshBtn" class="text-gray-500 hover:text-blue-600 transition-colors">
-              <i class="fas fa-toggle-on" id="autoRefreshIcon"></i>
-            </button>
-            <span class="text-sm text-gray-500">Auto-refresh</span>
-          </div>
-        </div>
-
-        <div id="inbox" class="space-y-3">
-          <div class="text-center py-12 text-gray-500">
-            <div class="text-6xl mb-4 opacity-50">
-              <i class="fas fa-inbox"></i>
-            </div>
-            <h3 class="text-xl font-medium mb-2">No emails yet</h3>
-            <p class="text-gray-400">Generate an email address to start receiving messages!</p>
-          </div>
-        </div>
+      <div id="emailContent" class="modal-body">
+        <!-- Email content will be loaded here -->
       </div>
-    </div>
-
-    <!-- Email Viewer Modal -->
-    <div id="emailModal" class="fixed inset-0 bg-black bg-opacity-50 hidden z-50">
-      <div class="flex flex-col h-full md:h-auto md:flex md:items-center md:justify-center md:p-4">
-        <div class="bg-white h-full w-full md:rounded-2xl md:max-w-4xl md:max-h-[90vh] md:h-auto overflow-hidden flex flex-col">
-          <!-- Gmail-like Header -->
-          <div class="flex items-center justify-between p-4 md:p-6 border-b bg-gray-50 flex-shrink-0">
-            <div class="flex items-center gap-3">
-              <button onclick="closeEmailModal()" class="text-gray-500 hover:text-gray-700 md:hidden">
-                <i class="fas fa-arrow-left text-xl"></i>
-              </button>
-              <div class="flex items-center gap-2">
-                <i class="fas fa-envelope text-blue-600"></i>
-                <h3 class="text-lg font-semibold text-gray-800 hidden md:block">Email</h3>
-              </div>
-            </div>
-            <div class="flex items-center gap-3">
-              <button onclick="markAsUnread()" class="text-gray-500 hover:text-blue-600 p-2 rounded-lg hover:bg-gray-100" title="Mark as unread">
-                <i class="fas fa-envelope-open"></i>
-              </button>
-              <button onclick="deleteEmail()" class="text-gray-500 hover:text-red-600 p-2 rounded-lg hover:bg-gray-100" title="Delete">
-                <i class="fas fa-trash"></i>
-              </button>
-              <button onclick="closeEmailModal()" class="text-gray-500 hover:text-gray-700 p-2 rounded-lg hover:bg-gray-100 hidden md:block">
-                <i class="fas fa-times text-xl"></i>
-              </button>
-            </div>
-          </div>
-          
-          <!-- Email Content -->
-          <div id="emailContent" class="flex-1 overflow-y-auto p-4 md:p-6">
-            <!-- Email content will be inserted here -->
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <!-- Footer -->
-    <div class="text-center mt-8 text-white/60 text-sm">
-      <p>© 2024 TempMail - Secure Disposable Email Service</p>
     </div>
   </div>
 
@@ -330,13 +352,13 @@
     let refreshInterval = null;
     let autoRefreshEnabled = true;
     let currentMessages = [];
+    let currentEmailIndex = -1;
 
     async function generateEmail() {
       const btn = document.getElementById('generateBtn');
       const text = document.getElementById('generateText');
       const icon = document.getElementById('generateIcon');
 
-      // Show loading state
       btn.disabled = true;
       text.textContent = 'Generating...';
       icon.className = 'fas fa-spinner fa-spin';
@@ -349,25 +371,20 @@
         address = data.address;
 
         document.getElementById("emailAddress").value = address;
-
-        // Enable buttons and start auto-refresh
         document.getElementById('refreshBtn').disabled = false;
         document.getElementById('clearBtn').disabled = false;
-        document.getElementById('statusBar').style.display = 'flex';
 
         if (autoRefreshEnabled) {
           startAutoRefresh();
         }
 
-        // Load initial inbox
         await loadInbox();
 
-        // Show success state
         text.textContent = 'Generated!';
         icon.className = 'fas fa-check';
         setTimeout(() => {
-          text.textContent = 'Generate New';
-          icon.className = 'fas fa-magic';
+          text.textContent = 'New Email';
+          icon.className = 'fas fa-plus';
           btn.disabled = false;
           btn.classList.remove('loading');
         }, 1000);
@@ -380,7 +397,7 @@
         icon.className = 'fas fa-exclamation-triangle';
         setTimeout(() => {
           text.textContent = 'Generate Email';
-          icon.className = 'fas fa-magic';
+          icon.className = 'fas fa-plus';
           btn.disabled = false;
           btn.classList.remove('loading');
         }, 2000);
@@ -393,75 +410,49 @@
 
       try {
         const res = await fetch(`/api/messages?token=${token}`);
-
-        if (!res.ok) {
-          throw new Error(`HTTP error! status: ${res.status}`);
-        }
+        if (!res.ok) throw new Error(`HTTP error! status: ${res.status}`);
 
         const messages = await res.json();
-
         if (!Array.isArray(messages)) {
           console.error('Invalid messages format:', messages);
-          showNotification('Failed to load messages. Invalid format.', 'error');
           return;
         }
 
-        console.log('Loaded messages:', messages); // Debug log
-
+        console.log('Loaded messages:', messages);
         currentMessages = messages;
-        document.getElementById('messageCount').textContent = `${messages.length} message${messages.length !== 1 ? 's' : ''}`;
+        document.getElementById('messageCount').textContent = messages.length;
 
         const inbox = document.getElementById('inbox');
 
         if (messages.length === 0) {
           inbox.innerHTML = `
-            <div class="text-center py-12 text-gray-500">
-              <div class="text-6xl mb-4 opacity-50">
-                <i class="fas fa-inbox"></i>
-              </div>
-              <h3 class="text-xl font-medium mb-2">No emails yet</h3>
-              <p class="text-gray-400">They'll appear here when received!</p>
+            <div class="empty-state">
+              <i class="fas fa-inbox"></i>
+              <h3 class="text-lg font-medium mb-2">No messages yet</h3>
+              <p class="text-gray-500">Messages will appear here when received</p>
             </div>
           `;
           return;
         }
 
         inbox.innerHTML = messages.map((msg, index) => {
-          // Get email content for preview
-          let previewText = '';
-          if (msg.text) {
-            previewText = msg.text;
-          } else if (msg.html) {
-            // Strip HTML tags for preview
-            const tempDiv = document.createElement('div');
-            tempDiv.innerHTML = msg.html;
-            previewText = tempDiv.textContent || tempDiv.innerText || '';
-          } else if (msg.intro) {
-            previewText = msg.intro;
-          } else {
-            previewText = 'Email content available - click to view';
-          }
-          
-          // Truncate preview text
-          if (previewText.length > 150) {
-            previewText = previewText.substring(0, 150) + '...';
-          }
-          
+          const previewText = msg.text || msg.intro || 'Click to view email content';
+          const truncatedText = previewText.length > 120 ? previewText.substring(0, 120) + '...' : previewText;
+
           return `
-            <div class="email-card bg-white rounded-xl p-4 border border-gray-100 slide-in" onclick="viewEmail(${index})" style="cursor: pointer;">
+            <div class="email-card ${!msg.seen ? 'unread' : ''}" onclick="viewEmail(${index})">
               <div class="flex items-start justify-between">
                 <div class="flex-1 min-w-0">
-                  <div class="flex items-center gap-2 mb-2">
-                    <div class="font-medium text-gray-900 truncate">${msg.subject || 'No Subject'}</div>
-                    ${msg.seen ? '' : '<span class="bg-blue-500 text-white text-xs px-2 py-1 rounded-full">NEW</span>'}
+                  <div class="flex items-center gap-2 mb-1">
+                    <span class="font-medium text-gray-900 truncate">${msg.subject || 'No Subject'}</span>
+                    ${!msg.seen ? '<span class="bg-blue-500 text-white text-xs px-2 py-1 rounded-full">NEW</span>' : ''}
                   </div>
-                  <div class="text-sm text-gray-600 mb-1 truncate">From: ${msg.from?.address || 'Unknown sender'}</div>
-                  <div class="email-preview text-sm text-gray-500">${previewText}</div>
-                  <div class="text-xs text-gray-400 mt-2">${formatDate(msg.date)}</div>
+                  <div class="text-sm text-gray-600 mb-1">From: ${msg.from?.address || 'Unknown'}</div>
+                  <div class="text-sm text-gray-500">${truncatedText}</div>
+                  <div class="text-xs text-gray-400 mt-2">${formatDate(msg.createdAt || msg.date)}</div>
                 </div>
-                <div class="flex items-center gap-2 ml-4">
-                  <i class="fas fa-envelope text-gray-400"></i>
-                  <i class="fas fa-chevron-right text-gray-300"></i>
+                <div class="ml-4 text-gray-300">
+                  <i class="fas fa-chevron-right"></i>
                 </div>
               </div>
             </div>
@@ -493,17 +484,22 @@
     }
 
     function clearInbox() {
-      if (confirm('Are you sure you want to clear all messages?')) {
+      if (confirm('Are you sure you want to delete all messages?')) {
         currentMessages = [];
-        loadInbox();
-        showNotification('Inbox cleared!', 'success');
+        document.getElementById('messageCount').textContent = '0';
+        document.getElementById('inbox').innerHTML = `
+          <div class="empty-state">
+            <i class="fas fa-inbox"></i>
+            <h3 class="text-lg font-medium mb-2">No messages</h3>
+            <p class="text-gray-500">All messages have been deleted</p>
+          </div>
+        `;
+        showNotification('All messages deleted!', 'success');
       }
     }
 
     function startAutoRefresh() {
-      if (refreshInterval) {
-        clearInterval(refreshInterval);
-      }
+      if (refreshInterval) clearInterval(refreshInterval);
       refreshInterval = setInterval(loadInbox, 10000);
     }
 
@@ -520,7 +516,7 @@
 
       if (autoRefreshEnabled) {
         icon.className = 'fas fa-toggle-on';
-        startAutoRefresh();
+        if (token) startAutoRefresh();
         showNotification('Auto-refresh enabled', 'success');
       } else {
         icon.className = 'fas fa-toggle-off';
@@ -529,19 +525,16 @@
       }
     }
 
-    let currentEmailIndex = -1;
-
     async function viewEmail(index) {
       const message = currentMessages[index];
       const modal = document.getElementById('emailModal');
       const content = document.getElementById('emailContent');
       currentEmailIndex = index;
 
-      // Show loading state
       content.innerHTML = `
         <div class="flex items-center justify-center py-12">
           <div class="text-center">
-            <i class="fas fa-spinner fa-spin text-3xl text-blue-500 mb-4"></i>
+            <i class="fas fa-spinner fa-spin text-2xl text-blue-500 mb-4"></i>
             <p class="text-gray-500">Loading email content...</p>
           </div>
         </div>
@@ -549,31 +542,25 @@
       modal.classList.remove('hidden');
 
       try {
-        // Fetch full email content from API
         const response = await fetch(`/api/messages/${message.id}?token=${token}`);
-        if (!response.ok) {
-          throw new Error(`HTTP error! status: ${response.status}`);
-        }
-        
+        if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+
         const fullMessage = await response.json();
-        
-        // Get sender's first letter for avatar
+
         const senderName = fullMessage.from?.name || fullMessage.from?.address || 'Unknown';
         const senderInitial = senderName.charAt(0).toUpperCase();
-        
-        // Determine the best content to display
+
         let emailContent = '';
         if (fullMessage.html) {
           emailContent = fullMessage.html;
         } else if (fullMessage.text) {
-          emailContent = `<div class="whitespace-pre-wrap font-sans leading-relaxed">${fullMessage.text}</div>`;
+          emailContent = `<div class="whitespace-pre-wrap">${fullMessage.text}</div>`;
         } else if (fullMessage.intro) {
-          emailContent = `<div class="leading-relaxed">${fullMessage.intro}</div>`;
+          emailContent = `<div>${fullMessage.intro}</div>`;
         } else {
-          emailContent = '<div class="text-gray-500 italic text-center py-8">No content available for this email</div>';
+          emailContent = '<div class="text-gray-500 italic text-center py-8">No content available</div>';
         }
 
-      // Format the date more like Gmail
         const emailDate = new Date(fullMessage.createdAt || fullMessage.date);
         const formattedDate = emailDate.toLocaleDateString('en-US', { 
           year: 'numeric', 
@@ -584,83 +571,39 @@
         });
 
         content.innerHTML = `
-          <div class="space-y-6">
-            <!-- Gmail-like Header -->
-            <div class="email-header">
-              <div class="flex items-start justify-between mb-4">
-                <h1 class="text-xl md:text-2xl font-semibold text-gray-900 leading-tight pr-4">${fullMessage.subject || 'No Subject'}</h1>
-                ${!fullMessage.seen ? '<span class="bg-blue-500 text-white text-xs px-3 py-1 rounded-full flex-shrink-0">UNREAD</span>' : ''}
+          <div class="email-meta">
+            <div class="flex items-center gap-3 mb-3">
+              <div class="w-10 h-10 bg-blue-500 rounded-full flex items-center justify-center text-white font-semibold">
+                ${senderInitial}
               </div>
-              
-              <div class="email-meta">
-                <div class="sender-avatar">
-                  ${senderInitial}
-                </div>
-                <div class="flex-1 min-w-0">
-                  <div class="flex items-center gap-2 flex-wrap">
-                    <span class="font-medium text-gray-900">${fullMessage.from?.name || 'Unknown Sender'}</span>
-                    <span class="text-gray-500 text-sm">&lt;${fullMessage.from?.address || 'unknown@email.com'}&gt;</span>
-                  </div>
-                  <div class="text-sm text-gray-600 mt-1">
-                    <span>to ${fullMessage.to?.[0]?.address || address || 'me'}</span>
-                  </div>
-                </div>
-                <div class="text-sm text-gray-500 flex-shrink-0">
-                  ${formattedDate}
-                </div>
+              <div class="flex-1">
+                <div class="font-medium text-gray-900">${fullMessage.from?.name || 'Unknown Sender'}</div>
+                <div class="text-sm text-gray-600">${fullMessage.from?.address || 'unknown@email.com'}</div>
               </div>
-              
-              ${fullMessage.hasAttachments ? `
-                <div class="mt-3 flex items-center gap-2 text-sm text-gray-600">
-                  <i class="fas fa-paperclip"></i>
-                  <span>This email has attachments</span>
-                </div>
-              ` : ''}
+              <div class="text-sm text-gray-500">${formattedDate}</div>
             </div>
+            <div class="text-lg font-semibold text-gray-900 mb-2">${fullMessage.subject || 'No Subject'}</div>
+            <div class="text-sm text-gray-600">To: ${address}</div>
+          </div>
 
-            <!-- Email Body -->
-            <div class="email-body-content">
-              ${emailContent}
-            </div>
-            
-            <!-- Email Actions -->
-            <div class="flex items-center justify-between pt-4 border-t">
-              <div class="flex items-center gap-4">
-                <button onclick="replyToEmail()" class="flex items-center gap-2 px-4 py-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors">
-                  <i class="fas fa-reply"></i>
-                  <span class="hidden md:inline">Reply</span>
-                </button>
-                <button onclick="forwardEmail()" class="flex items-center gap-2 px-4 py-2 text-gray-600 hover:bg-gray-50 rounded-lg transition-colors">
-                  <i class="fas fa-share"></i>
-                  <span class="hidden md:inline">Forward</span>
-                </button>
-              </div>
-              <div class="text-sm text-gray-500">
-                Email ID: ${fullMessage.id}
-              </div>
-            </div>
+          <div class="prose max-w-none">
+            ${emailContent}
           </div>
         `;
-        
-        // Mark as read if it was unread
+
         if (!message.seen) {
           message.seen = true;
-          // Update the inbox view to reflect the read status
-          setTimeout(() => {
-            loadInbox();
-          }, 100);
+          setTimeout(() => loadInbox(), 100);
         }
-        
+
       } catch (error) {
         console.error('Error fetching full email:', error);
         content.innerHTML = `
           <div class="text-center py-12">
-            <div class="text-red-500 text-xl mb-4">
-              <i class="fas fa-exclamation-triangle"></i>
-            </div>
-            <h3 class="text-lg font-medium mb-2 text-gray-900">Failed to load email content</h3>
-            <p class="text-gray-500 mb-4">Unable to fetch the full email content.</p>
-            <button onclick="viewEmail(${index})" class="bg-blue-500 text-white px-4 py-2 rounded-lg hover:bg-blue-600">
+            <i class="fas fa-exclamation-triangle text-red-500 text-2xl mb-4"></i>
+            <h3 class="text-lg font-medium mb-2">Failed to load email</h3>
+            <p class="text-gray-500 mb-4">Unable to fetch the email content.</p>
+            <button onclick="viewEmail(${index})" class="btn-primary">
               Try Again
             </button>
           </div>
@@ -688,11 +631,6 @@
       return date.toLocaleDateString();
     }
 
-    function updateLastRefresh() {
-      const element = document.getElementById('lastRefresh');
-      element.textContent = `Last refresh: ${new Date().toLocaleTimeString()}`;
-    }
-
     async function copyEmail() {
       if (!address) {
         showNotification('Generate an email first!', 'warning');
@@ -703,7 +641,6 @@
         await navigator.clipboard.writeText(address);
         showNotification('Email copied to clipboard!', 'success');
       } catch (error) {
-        // Fallback for older browsers
         const textArea = document.createElement('textarea');
         textArea.value = address;
         document.body.appendChild(textArea);
@@ -711,42 +648,6 @@
         document.execCommand('copy');
         document.body.removeChild(textArea);
         showNotification('Email copied to clipboard!', 'success');
-      }
-    }
-
-    function showNotification(message, type = 'info') {
-      // Remove existing notifications
-      const existing = document.querySelectorAll('.notification-toast');
-      existing.forEach(n => n.remove());
-
-      // Create notification element
-      const notification = document.createElement('div');
-      notification.className = `notification notification-toast fixed top-4 right-4 px-6 py-4 rounded-xl text-white font-medium z-50 shadow-lg ${
-        type === 'success' ? 'bg-green-500' : 
-        type === 'warning' ? 'bg-yellow-500' : 
-        type === 'error' ? 'bg-red-500' : 'bg-blue-500'
-      }`;
-
-      notification.innerHTML = `
-        <div class="flex items-center gap-3">
-          <i class="fas fa-${type === 'success' ? 'check-circle' : type === 'warning' ? 'exclamation-triangle' : type === 'error' ? 'times-circle' : 'info-circle'}"></i>
-          <span>${message}</span>
-        </div>
-      `;
-
-      document.body.appendChild(notification);
-
-      // Remove after 4 seconds
-      setTimeout(() => {
-        notification.remove();
-      }, 4000);
-    }
-
-    function markAsUnread() {
-      if (currentEmailIndex >= 0 && currentMessages[currentEmailIndex]) {
-        currentMessages[currentEmailIndex].seen = false;
-        showNotification('Marked as unread', 'info');
-        loadInbox();
       }
     }
 
@@ -759,44 +660,40 @@
       }
     }
 
-    function replyToEmail() {
-      showNotification('Reply feature not available in disposable email service', 'info');
+    function showNotification(message, type = 'info') {
+      const existing = document.querySelectorAll('.notification');
+      existing.forEach(n => n.remove());
+
+      const notification = document.createElement('div');
+      notification.className = `notification ${
+        type === 'success' ? 'bg-green-500' : 
+        type === 'warning' ? 'bg-yellow-500' : 
+        type === 'error' ? 'bg-red-500' : 'bg-blue-500'
+      }`;
+
+      notification.innerHTML = `
+        <div class="flex items-center gap-2">
+          <i class="fas fa-${type === 'success' ? 'check-circle' : type === 'warning' ? 'exclamation-triangle' : type === 'error' ? 'times-circle' : 'info-circle'}"></i>
+          <span>${message}</span>
+        </div>
+      `;
+
+      document.body.appendChild(notification);
+      setTimeout(() => notification.remove(), 4000);
     }
 
-    function forwardEmail() {
-      if (currentEmailIndex >= 0 && currentMessages[currentEmailIndex]) {
-        const message = currentMessages[currentEmailIndex];
-        const subject = `Fwd: ${message.subject || 'No Subject'}`;
-        const content = `\n\n---------- Forwarded message ----------\nFrom: ${message.from?.address}\nDate: ${formatDate(message.date)}\nSubject: ${message.subject}\n\n${message.text || message.intro || 'No content'}`;
-        
-        // Copy to clipboard
-        navigator.clipboard.writeText(`Subject: ${subject}\n${content}`).then(() => {
-          showNotification('Email content copied to clipboard', 'success');
-        }).catch(() => {
-          showNotification('Could not copy to clipboard', 'error');
-        });
-      }
-    }
-
-    // Close modal when clicking outside (but not on mobile)
+    // Close modal when clicking outside
     document.getElementById('emailModal').addEventListener('click', function(e) {
-      if (e.target === this && window.innerWidth > 768) {
+      if (e.target === this) {
         closeEmailModal();
       }
     });
 
-    // Initialize
-    document.addEventListener('DOMContentLoaded', function() {
-      // Add keyboard shortcuts
-      document.addEventListener('keydown', function(e) {
-        if (e.key === 'Escape') {
-          closeEmailModal();
-        }
-        if (e.key === 'r' && (e.ctrlKey || e.metaKey)) {
-          e.preventDefault();
-          refreshInbox();
-        }
-      });
+    // Keyboard shortcuts
+    document.addEventListener('keydown', function(e) {
+      if (e.key === 'Escape') {
+        closeEmailModal();
+      }
     });
   </script>
 </body>
