@@ -118,62 +118,58 @@ app.get('/api/generate', async (req, res) => {
       });
     }
 
-    // Fallback domains in case API is not accessible
-    const fallbackDomains = [
-      '1secmail.com',
-      '1secmail.org', 
-      '1secmail.net',
-      'kzccv.com',
-      'qiott.com',
-      'wuuvo.com',
-      'icznn.com',
-      'vjuum.com'
-    ];
+    // Get available domains
+    const domainRes = await fetch('https://api.mail.tm/domains', {
+      timeout: 5000 // Reduced timeout for 512MB VPS
+    });
+    const domainData = await domainRes.json();
 
-    let domains = fallbackDomains;
-
-    // Try to get available domains from 1secmail
-    try {
-      const domainRes = await fetch('https://www.1secmail.com/api/v1/?action=getDomainList', {
-        timeout: 3000,
-        headers: {
-          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
-        }
-      });
-      
-      if (domainRes.ok) {
-        const apiDomains = await domainRes.json();
-        if (Array.isArray(apiDomains) && apiDomains.length > 0) {
-          domains = apiDomains;
-          console.log('✅ Successfully fetched domains from API');
-        }
-      }
-    } catch (apiError) {
-      console.log('⚠️  API not accessible, using fallback domains:', apiError.message);
+    if (!domainData['hydra:member'] || domainData['hydra:member'].length === 0) {
+      return res.status(500).json({ error: 'No domains available' });
     }
 
-    // Generate random username and select random domain
+    const domain = domainData['hydra:member'][0].domain;
     const username = Math.random().toString(36).substring(2, 10);
-    const domain = domains[Math.floor(Math.random() * domains.length)];
     const address = `${username}@${domain}`;
+    const password = 'TempMail123';
 
-    // For 1secmail, we don't need to create an account or get a token
-    // The email address itself serves as the identifier
-    const token = `${username}:${domain}`; // Simple token format for 1secmail
+    // Create account
+    const accountRes = await fetch('https://api.mail.tm/accounts', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ address, password }),
+      timeout: 5000
+    });
+
+    if (!accountRes.ok) {
+      const error = await accountRes.json();
+      return res.status(400).json({ error: 'Failed to create account', details: error });
+    }
+
+    // Get authentication token
+    const tokenRes = await fetch('https://api.mail.tm/token', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ address, password }),
+      timeout: 5000
+    });
+
+    if (!tokenRes.ok) {
+      return res.status(400).json({ error: 'Failed to authenticate' });
+    }
+
+    const tokenData = await tokenRes.json();
+    const token = tokenData.token;
 
     // Store session with size limit
     const sessionId = Math.random().toString(36).substring(2, 15);
     activeSessions.set(sessionId, { 
-      address,
-      username,
-      domain,
+      address, 
       token, 
       createdAt: Date.now(),
       lastActivity: Date.now(),
-      messageCount: 0
+      messageCount: 0 // Track message count per session
     });
-
-    console.log(`📧 Generated email: ${address}`);
 
     res.json({ 
       address, 
@@ -199,43 +195,17 @@ app.get('/api/messages/:id', async (req, res) => {
       return res.status(400).json({ error: 'Token required' });
     }
 
-    // Parse token to get username and domain
-    const [username, domain] = token.split(':');
-    if (!username || !domain) {
-      return res.status(400).json({ error: 'Invalid token format' });
-    }
-
-    // Get message from 1secmail
-    const messageRes = await fetch(`https://www.1secmail.com/api/v1/?action=readMessage&login=${username}&domain=${domain}&id=${id}`, {
-      timeout: 5000,
-      headers: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
-      }
+    const messageRes = await fetch(`https://api.mail.tm/messages/${id}`, {
+      headers: { Authorization: `Bearer ${token}` },
+      timeout: 5000
     });
 
     if (!messageRes.ok) {
-      console.log(`⚠️  Failed to fetch message ${id}: ${messageRes.status}`);
       return res.status(404).json({ error: 'Message not found' });
     }
 
     const message = await messageRes.json();
-
-    // Transform 1secmail format to match our expected format
-    const transformedMessage = {
-      id: message.id,
-      subject: message.subject,
-      from: {
-        address: message.from,
-        name: message.from
-      },
-      date: message.date,
-      createdAt: message.date,
-      text: message.textBody || '',
-      html: message.htmlBody || message.textBody || '',
-      intro: message.textBody ? message.textBody.substring(0, 100) + '...' : ''
-    };
-
-    res.json(transformedMessage);
+    res.json(message);
 
   } catch (error) {
     console.error('Error fetching message:', error);
@@ -252,55 +222,27 @@ app.get('/api/messages', async (req, res) => {
       return res.status(400).json({ error: 'Token required' });
     }
 
-    // Parse token to get username and domain
-    const [username, domain] = token.split(':');
-    if (!username || !domain) {
-      return res.status(400).json({ error: 'Invalid token format' });
-    }
-
     // Update session activity
     if (sessionId && activeSessions.has(sessionId)) {
       const session = activeSessions.get(sessionId);
       session.lastActivity = Date.now();
     }
 
-    // Get messages from 1secmail
-    const messagesRes = await fetch(`https://www.1secmail.com/api/v1/?action=getMessages&login=${username}&domain=${domain}`, {
-      timeout: 5000,
-      headers: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
-      }
+    const messagesRes = await fetch('https://api.mail.tm/messages', {
+      headers: { Authorization: `Bearer ${token}` },
+      timeout: 5000
     });
 
     if (!messagesRes.ok) {
-      console.log(`⚠️  Failed to fetch messages for ${username}@${domain}: ${messagesRes.status}`);
-      return res.json([]); // Return empty array instead of error
+      return res.status(401).json({ error: 'Invalid token' });
     }
 
-    const messages = await messagesRes.json();
-
-    if (!Array.isArray(messages)) {
-      return res.json([]);
-    }
-
-    // Transform 1secmail format to match our expected format
-    const transformedMessages = messages.map(msg => ({
-      id: msg.id,
-      subject: msg.subject,
-      from: {
-        address: msg.from,
-        name: msg.from
-      },
-      date: msg.date,
-      createdAt: msg.date,
-      text: msg.textBody || '',
-      intro: msg.textBody ? msg.textBody.substring(0, 100) + '...' : '',
-      seen: false
-    }));
+    const messagesData = await messagesRes.json();
+    const messages = messagesData['hydra:member'] || [];
 
     // Sort messages by date (newest first) and limit to prevent memory issues
-    transformedMessages.sort((a, b) => new Date(b.date) - new Date(a.date));
-    const limitedMessages = transformedMessages.slice(0, MAX_MESSAGES_PER_SESSION);
+    messages.sort((a, b) => new Date(b.date) - new Date(a.date));
+    const limitedMessages = messages.slice(0, MAX_MESSAGES_PER_SESSION); // Limit to 25 messages
 
     // Update session message count
     if (sessionId && activeSessions.has(sessionId)) {
@@ -324,14 +266,17 @@ app.delete('/api/messages/:id', async (req, res) => {
       return res.status(400).json({ error: 'Token required' });
     }
 
-    // Note: 1secmail API doesn't support message deletion
-    // We'll simulate success but the message won't actually be deleted from their servers
-    // This is a limitation of the 1secmail API
-    
-    res.json({ 
-      success: true, 
-      note: '1secmail API does not support message deletion. Message will expire automatically.' 
+    const deleteRes = await fetch(`https://api.mail.tm/messages/${id}`, {
+      method: 'Delete',
+      headers: { Authorization: `Bearer ${token}` },
+      timeout: 5000
     });
+
+    if (!deleteRes.ok) {
+      return res.status(400).json({ error: 'Failed to delete message' });
+    }
+
+    res.json({ success: true });
 
   } catch (error) {
     console.error('Error deleting message:', error);
@@ -341,28 +286,17 @@ app.delete('/api/messages/:id', async (req, res) => {
 
 app.get('/api/domains', async (req, res) => {
   try {
-    const domainsRes = await fetch('https://www.1secmail.com/api/v1/?action=getDomainList', {
+    const domainsRes = await fetch('https://api.mail.tm/domains', {
       timeout: 5000
     });
+    const domainsData = await domainsRes.json();
 
     if (!domainsRes.ok) {
       return res.status(500).json({ error: 'Failed to fetch domains' });
     }
 
-    const domains = await domainsRes.json();
-
-    if (!Array.isArray(domains)) {
-      return res.status(500).json({ error: 'Invalid domains response' });
-    }
-
-    // Transform to match expected format
-    const transformedDomains = domains.map(domain => ({
-      domain: domain,
-      isActive: true,
-      isPrivate: false
-    }));
-
-    res.json(transformedDomains);
+    const domains = domainsData['hydra:member'] || [];
+    res.json(domains);
 
   } catch (error) {
     console.error('Error fetching domains:', error);
@@ -378,20 +312,9 @@ app.get('/api/status', async (req, res) => {
       return res.status(400).json({ error: 'Token required' });
     }
 
-    // Parse token to get username and domain
-    const [username, domain] = token.split(':');
-    if (!username || !domain) {
-      return res.json({ 
-        valid: false,
-        timestamp: Date.now(),
-        activeSessions: activeSessions.size,
-        maxSessions: MAX_SESSIONS,
-        error: 'Invalid token format'
-      });
-    }
-
-    // Test token validity by trying to fetch messages from 1secmail
-    const messagesRes = await fetch(`https://www.1secmail.com/api/v1/?action=getMessages&login=${username}&domain=${domain}`, {
+    // Test token validity by trying to fetch messages
+    const messagesRes = await fetch('https://api.mail.tm/messages', {
+      headers: { Authorization: `Bearer ${token}` },
       timeout: 5000
     });
 
@@ -400,8 +323,6 @@ app.get('/api/status', async (req, res) => {
     res.json({ 
       valid: isValid,
       timestamp: Date.now(),
-      username: username,
-      domain: domain,
       activeSessions: activeSessions.size,
       maxSessions: MAX_SESSIONS
     });
