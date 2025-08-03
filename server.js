@@ -17,6 +17,10 @@ app.use(express.json({ limit: '512kb' })); // Reduced from 1mb for 512MB VPS
 // Store active sessions with size limit
 const activeSessions = new Map();
 
+// API rotation counter  
+let apiRotationCounter = 0;
+const availableAPIs = ['somoj', '1secmail', 'mailtm'];
+
 // Memory monitoring with alerts
 const getMemoryUsage = () => {
   const usage = process.memoryUsage();
@@ -118,48 +122,70 @@ app.get('/api/generate', async (req, res) => {
       });
     }
 
-    // Try mail.tm first
-    try {
-      console.log('🔄 Trying mail.tm service...');
-      
-      // Get available domains from mail.tm
-      const domainsResponse = await fetch('https://api.mail.tm/domains', {
-        timeout: 10000,
-        headers: {
-          'Accept': 'application/json',
-          'User-Agent': 'TempMail/1.0'
-        }
-      });
+    // Determine API to use based on rotation counter
+    const apiToUse = availableAPIs[apiRotationCounter % availableAPIs.length];
+    apiRotationCounter++; // Increment for next time
 
-      if (domainsResponse.ok) {
-        const domainsData = await domainsResponse.json();
-        const domains = domainsData['hydra:member'] || [];
-        
-        if (domains.length > 0) {
-          const domain = domains[0].domain;
-          const username = Math.random().toString(36).substring(2, 12);
-          const address = `${username}@${domain}`;
-          const password = Math.random().toString(36).substring(2, 15);
+    if (apiToUse === 'somoj') {
+      try {
+        console.log('🔄 Trying somoj.com service...');
+        const somojDomains = ['somoj.com']; // You might want to fetch these dynamically
+        const domain = somojDomains[0];
+        const username = Math.random().toString(36).substring(2, 12);
+        const address = `${username}@${domain}`;
+        const token = `somoj:${username}:${domain}`;
+  
+        const sessionId = Math.random().toString(36).substring(2, 15);
+        activeSessions.set(sessionId, {
+          address,
+          username,
+          domain,
+          token,
+          provider: 'somoj',
+          createdAt: Date.now(),
+          lastActivity: Date.now(),
+          messageCount: 0
+        });
+  
+        console.log(`📧 Generated somoj.com email: ${address}`);
+        return res.json({
+          address,
+          token,
+          sessionId,
+          domain,
+          provider: 'somoj',
+          expiresAt: Date.now() + MAX_AGE
+        });
+      } catch (error) {
+        console.log('⚠️  somoj.com failed:', error.message);
+      }
+    }
 
-          // Create account on mail.tm
-          const createResponse = await fetch('https://api.mail.tm/accounts', {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'Accept': 'application/json',
-              'User-Agent': 'TempMail/1.0'
-            },
-            body: JSON.stringify({
-              address: address,
-              password: password
-            })
-          });
+    if (apiToUse === 'mailtm') {
+      try {
+        console.log('🔄 Trying mail.tm service...');
 
-          if (createResponse.ok) {
-            const accountData = await createResponse.json();
-            
-            // Get JWT token
-            const tokenResponse = await fetch('https://api.mail.tm/token', {
+        // Get available domains from mail.tm
+        const domainsResponse = await fetch('https://api.mail.tm/domains', {
+          timeout: 10000,
+          headers: {
+            'Accept': 'application/json',
+            'User-Agent': 'TempMail/1.0'
+          }
+        });
+
+        if (domainsResponse.ok) {
+          const domainsData = await domainsResponse.json();
+          const domains = domainsData['hydra:member'] || [];
+
+          if (domains.length > 0) {
+            const domain = domains[0].domain;
+            const username = Math.random().toString(36).substring(2, 12);
+            const address = `${username}@${domain}`;
+            const password = Math.random().toString(36).substring(2, 15);
+
+            // Create account on mail.tm
+            const createResponse = await fetch('https://api.mail.tm/accounts', {
               method: 'POST',
               headers: {
                 'Content-Type': 'application/json',
@@ -172,172 +198,112 @@ app.get('/api/generate', async (req, res) => {
               })
             });
 
-            if (tokenResponse.ok) {
-              const tokenData = await tokenResponse.json();
-              const jwtToken = tokenData.token;
-              const token = `mailtm:${accountData.id}:${jwtToken}`;
+            if (createResponse.ok) {
+              const accountData = await createResponse.json();
 
-              // Store session
-              const sessionId = Math.random().toString(36).substring(2, 15);
-              activeSessions.set(sessionId, { 
-                address,
-                username,
-                domain,
-                token, 
-                provider: 'mailtm',
-                accountId: accountData.id,
-                jwtToken: jwtToken,
-                createdAt: Date.now(),
-                lastActivity: Date.now(),
-                messageCount: 0
+              // Get JWT token
+              const tokenResponse = await fetch('https://api.mail.tm/token', {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                  'Accept': 'application/json',
+                  'User-Agent': 'TempMail/1.0'
+                },
+                body: JSON.stringify({
+                  address: address,
+                  password: password
+                })
               });
 
-              console.log(`📧 Generated mail.tm email: ${address}`);
-              return res.json({ 
-                address, 
-                token, 
-                sessionId,
-                domain,
-                provider: 'mailtm',
-                expiresAt: Date.now() + MAX_AGE
-              });
+              if (tokenResponse.ok) {
+                const tokenData = await tokenResponse.json();
+                const jwtToken = tokenData.token;
+                const token = `mailtm:${accountData.id}:${jwtToken}`;
+
+                // Store session
+                const sessionId = Math.random().toString(36).substring(2, 15);
+                activeSessions.set(sessionId, { 
+                  address,
+                  username,
+                  domain,
+                  token, 
+                  provider: 'mailtm',
+                  accountId: accountData.id,
+                  jwtToken: jwtToken,
+                  createdAt: Date.now(),
+                  lastActivity: Date.now(),
+                  messageCount: 0
+                });
+
+                console.log(`📧 Generated mail.tm email: ${address}`);
+                return res.json({ 
+                  address, 
+                  token, 
+                  sessionId,
+                  domain,
+                  provider: 'mailtm',
+                  expiresAt: Date.now() + MAX_AGE
+                });
+              }
             }
           }
         }
+      } catch (error) {
+        console.log('⚠️  mail.tm failed:', error.message);
       }
-    } catch (error) {
-      console.log('⚠️  mail.tm failed:', error.message);
     }
 
     // Try 1secmail.com as backup
-    try {
-      console.log('🔄 Trying 1secmail.com service...');
-      const domainsResponse = await fetch('https://www.1secmail.com/api/v1/?action=getDomainList', {
-        timeout: 10000,
-        headers: {
-          'User-Agent': 'TempMail/1.0'
+    if (apiToUse === '1secmail') {
+      try {
+        console.log('🔄 Trying 1secmail.com service...');
+        const domainsResponse = await fetch('https://www.1secmail.com/api/v1/?action=getDomainList', {
+          timeout: 10000,
+          headers: {
+            'User-Agent': 'TempMail/1.0'
+          }
+        });
+
+        if (domainsResponse.ok) {
+          const domains = await domainsResponse.json();
+          if (Array.isArray(domains) && domains.length > 0) {
+            const domain = domains[Math.floor(Math.random() * domains.length)];
+            const username = Math.random().toString(36).substring(2, 12);
+            const address = `${username}@${domain}`;
+            const token = `1secmail:${username}:${domain}`;
+
+            // Store session
+            const sessionId = Math.random().toString(36).substring(2, 15);
+            activeSessions.set(sessionId, { 
+              address,
+              username,
+              domain,
+              token, 
+              provider: '1secmail',
+              createdAt: Date.now(),
+              lastActivity: Date.now(),
+              messageCount: 0
+            });
+
+            console.log(`📧 Generated 1secmail email: ${address}`);
+            return res.json({ 
+              address, 
+              token, 
+              sessionId,
+              domain,
+              provider: '1secmail',
+              expiresAt: Date.now() + MAX_AGE
+            });
+          }
         }
-      });
-
-      if (domainsResponse.ok) {
-        const domains = await domainsResponse.json();
-        if (Array.isArray(domains) && domains.length > 0) {
-          const domain = domains[Math.floor(Math.random() * domains.length)];
-          const username = Math.random().toString(36).substring(2, 12);
-          const address = `${username}@${domain}`;
-          const token = `1secmail:${username}:${domain}`;
-
-          // Store session
-          const sessionId = Math.random().toString(36).substring(2, 15);
-          activeSessions.set(sessionId, { 
-            address,
-            username,
-            domain,
-            token, 
-            provider: '1secmail',
-            createdAt: Date.now(),
-            lastActivity: Date.now(),
-            messageCount: 0
-          });
-
-          console.log(`📧 Generated 1secmail email: ${address}`);
-          return res.json({ 
-            address, 
-            token, 
-            sessionId,
-            domain,
-            provider: '1secmail',
-            expiresAt: Date.now() + MAX_AGE
-          });
-        }
+      } catch (error) {
+        console.log('⚠️  1secmail failed:', error.message);
       }
-    } catch (error) {
-      console.log('⚠️  1secmail failed:', error.message);
     }
 
-    // Try tempmail.lol as third option
-    try {
-      console.log('🔄 Trying tempmail.lol service...');
-      const response = await fetch('https://api.tempmail.lol/generate', {
-        timeout: 10000,
-        headers: {
-          'Accept': 'application/json',
-          'User-Agent': 'TempMail/1.0'
-        }
-      });
-
-      if (response.ok) {
-        const data = await response.json();
-        if (data.address) {
-          const address = data.address;
-          const [username, domain] = address.split('@');
-          const token = `tempmail-lol:${data.token || username}:${domain}`;
-
-          // Store session
-          const sessionId = Math.random().toString(36).substring(2, 15);
-          activeSessions.set(sessionId, { 
-            address,
-            username,
-            domain,
-            token, 
-            provider: 'tempmail-lol',
-            apiToken: data.token,
-            createdAt: Date.now(),
-            lastActivity: Date.now(),
-            messageCount: 0
-          });
-
-          console.log(`📧 Generated tempmail.lol email: ${address}`);
-          return res.json({ 
-            address, 
-            token, 
-            sessionId,
-            domain,
-            provider: 'tempmail-lol',
-            expiresAt: Date.now() + MAX_AGE
-          });
-        }
-      }
-    } catch (error) {
-      console.log('⚠️  tempmail.lol failed:', error.message);
-    }
-
-    // Fallback to demo mode if all APIs fail
-    console.log('🔄 All APIs failed, using demo mode...');
-    const demodomains = [
-      'demo-tempmail.com',
-      'demo-mail.org', 
-      'demo-email.net'
-    ];
-
-    const username = Math.random().toString(36).substring(2, 12);
-    const domain = demodomains[Math.floor(Math.random() * demodomains.length)];
-    const address = `${username}@${domain}`;
-    const token = `demo:${username}:${domain}`;
-
-    // Store session
-    const sessionId = Math.random().toString(36).substring(2, 15);
-    activeSessions.set(sessionId, { 
-      address,
-      username,
-      domain,
-      token, 
-      provider: 'demo',
-      createdAt: Date.now(),
-      lastActivity: Date.now(),
-      messageCount: 0
-    });
-
-    console.log(`📧 Generated demo email: ${address}`);
-
-    res.json({ 
-      address, 
-      token, 
-      sessionId,
-      domain,
-      provider: 'demo',
-      expiresAt: Date.now() + MAX_AGE
-    });
+    // If all APIs fail
+    console.log('🔄 All APIs failed');
+    return res.status(500).json({ error: 'All APIs failed to generate email' });
 
   } catch (error) {
     console.error('Error generating email:', error);
@@ -364,7 +330,7 @@ app.get('/api/messages/:id', async (req, res) => {
     if (provider === 'mailtm') {
       // mail.tm provider
       const [, accountId, jwtToken] = tokenParts;
-      
+
       try {
         const messageRes = await fetch(`https://api.mail.tm/messages/${id}`, {
           timeout: 10000,
@@ -398,7 +364,7 @@ app.get('/api/messages/:id', async (req, res) => {
     } else if (provider === '1secmail') {
       // 1secmail provider
       const [, username, domain] = tokenParts;
-      
+
       try {
         const messageRes = await fetch(`https://www.1secmail.com/api/v1/?action=readMessage&login=${username}&domain=${domain}&id=${id}`, {
           timeout: 10000,
@@ -427,119 +393,38 @@ app.get('/api/messages/:id', async (req, res) => {
         console.log(`⚠️  Error fetching 1secmail message ${id}:`, error.message);
       }
 
-    } else if (provider === 'tempmail-lol') {
-      // tempmail.lol provider
-      const [, apiToken, domain] = tokenParts;
-      
-      try {
-        const messageRes = await fetch(`https://api.tempmail.lol/auth/${apiToken}/messages/${id}`, {
-          timeout: 10000,
-          headers: {
-            'Accept': 'application/json',
-            'User-Agent': 'TempMail/1.0'
-          }
-        });
+    } else if (provider === 'somoj') {
+         const [, username, domain] = tokenParts;
 
-        if (messageRes.ok) {
-          const data = await messageRes.json();
-          message = {
-            id: data.id,
-            subject: data.subject || 'No Subject',
-            from: {
-              address: data.from,
-              name: data.from
-            },
-            date: data.date || new Date().toISOString(),
-            createdAt: data.date || new Date().toISOString(),
-            text: data.body || '',
-            html: data.html || data.body || '',
-            intro: data.body ? data.body.substring(0, 100) + '...' : ''
-          };
-        }
-      } catch (error) {
-        console.log(`⚠️  Error fetching tempmail.lol message ${id}:`, error.message);
-      }
-
-    } else if (provider === 'demo') {
-      // Demo provider - return demo message content
-      const demoMessages = {
-        'demo_1': {
-          id: 'demo_1',
-          subject: 'Welcome to TempMonkeyMail!',
+         //Since somoj is not an external api, we don't call an external api to get messages.
+         message = {
+          id: 'somoj_1',
+          subject: 'Welcome to SomojMail!',
           from: {
-            address: 'welcome@tempmonkeymail.com',
-            name: 'TempMonkeyMail Team'
+            address: 'welcome@somojmail.com',
+            name: 'SomojMail Team'
           },
           date: new Date().toISOString(),
           createdAt: new Date().toISOString(),
           text: `Dear User,
-
-Welcome to TempMonkeyMail! 🎉
-
-Your temporary email address is now active and ready to receive emails. Here's what you can do:
-
-✅ Use this email for signups and registrations
-✅ Protect your real email from spam
-✅ Keep your privacy intact
-✅ No registration required
-
-This service provides you with a temporary, disposable email address that you can use anywhere you need an email but don't want to use your real one.
-
-Features:
-- Instant email generation
-- Real-time message delivery
-- Clean, modern interface
-- Mobile-friendly design
-- Automatic cleanup
-
-Thank you for using TempMonkeyMail!
-
+          
+Welcome to SomojMail! 🎉
+          
+Your temporary email address is now active and ready to receive emails.
+          
+Thank you for using SomojMail!
+          
 Best regards,
-The TempMonkeyMail Team`,
+The SomojMail Team`,
           html: `<div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
-            <h2 style="color: #4ade80;">Welcome to TempMonkeyMail! 🎉</h2>
-            <p>Your temporary email address is now active and ready to receive emails.</p>
-            <h3>What you can do:</h3>
-            <ul>
-              <li>✅ Use this email for signups and registrations</li>
-              <li>✅ Protect your real email from spam</li>
-              <li>✅ Keep your privacy intact</li>
-              <li>✅ No registration required</li>
-            </ul>
-            <p>Thank you for using TempMonkeyMail!</p>
-            <p><strong>The TempMonkeyMail Team</strong></p>
+          <h2 style="color: #4ade80;">Welcome to SomojMail! 🎉</h2>
+          <p>Your temporary email address is now active and ready to receive emails.</p>
+          <p>Thank you for using SomojMail!</p>
+          <p><strong>The SomojMail Team</strong></p>
           </div>`,
-          intro: 'Welcome to TempMonkeyMail! Your temporary email address is now active...'
-        },
-        'demo_2': {
-          id: 'demo_2',
-          subject: 'Demo Message 2',
-          from: {
-            address: 'demo2@example.com',
-            name: 'Demo Sender 2'
-          },
-          date: new Date().toISOString(),
-          createdAt: new Date().toISOString(),
-          text: 'This is the second demo message. Your temporary email is working perfectly and can receive real emails from any sender.',
-          html: '<p>This is the second demo message. Your temporary email is working perfectly and can receive real emails from any sender.</p>',
-          intro: 'This is the second demo message...'
-        },
-        'demo_3': {
-          id: 'demo_3',
-          subject: 'Demo Message 3',
-          from: {
-            address: 'demo3@example.com',
-            name: 'Demo Sender 3'
-          },
-          date: new Date().toISOString(),
-          createdAt: new Date().toISOString(),
-          text: 'This is the third demo message showing how multiple emails appear in your inbox.',
-          html: '<p>This is the third demo message showing how multiple emails appear in your inbox.</p>',
-          intro: 'This is the third demo message...'
-        }
-      };
+          intro: 'Welcome to SomojMail! Your temporary email address is now active...'
+        };
 
-      message = demoMessages[id];
     }
 
     if (!message) {
@@ -579,7 +464,7 @@ app.get('/api/messages', async (req, res) => {
     if (provider === 'mailtm') {
       // mail.tm provider
       const [, accountId, jwtToken] = tokenParts;
-      
+
       try {
         const messagesRes = await fetch('https://api.mail.tm/messages', {
           timeout: 10000,
@@ -618,7 +503,7 @@ app.get('/api/messages', async (req, res) => {
     } else if (provider === '1secmail') {
       // 1secmail provider
       const [, username, domain] = tokenParts;
-      
+
       try {
         const messagesRes = await fetch(`https://www.1secmail.com/api/v1/?action=getMessages&login=${username}&domain=${domain}`, {
           timeout: 10000,
@@ -651,75 +536,22 @@ app.get('/api/messages', async (req, res) => {
       } catch (error) {
         console.log(`⚠️  Error fetching 1secmail messages:`, error.message);
       }
-
-    } else if (provider === 'tempmail-lol') {
-      // tempmail.lol provider
-      const [, apiToken, domain] = tokenParts;
-      
-      try {
-        const messagesRes = await fetch(`https://api.tempmail.lol/auth/${apiToken}/messages`, {
-          timeout: 10000,
-          headers: {
-            'Accept': 'application/json',
-            'User-Agent': 'TempMail/1.0'
-          }
-        });
-
-        if (messagesRes.ok) {
-          const data = await messagesRes.json();
-          if (data.email && Array.isArray(data.email)) {
-            messages = data.email.map(msg => ({
-              id: msg.id,
-              subject: msg.subject || 'No Subject',
-              from: {
-                address: msg.from,
-                name: msg.from
-              },
-              date: msg.date || new Date().toISOString(),
-              createdAt: msg.date || new Date().toISOString(),
-              text: msg.body || '',
-              intro: msg.body ? msg.body.substring(0, 100) + '...' : '',
-              seen: false
-            }));
-            console.log(`📧 Fetched ${messages.length} messages from tempmail.lol`);
-          }
-        } else {
-          console.log(`⚠️  tempmail.lol API error: ${messagesRes.status}`);
-        }
-      } catch (error) {
-        console.log(`⚠️  Error fetching tempmail.lol messages:`, error.message);
-      }
-
-    } else if (provider === 'demo') {
-      // Demo provider - simulate messages
+    } else if (provider === 'somoj') {
       const [, username, domain] = tokenParts;
-      const now = Date.now();
-      
-      // Add demo messages after 30 seconds
-      if (session && (now - session.createdAt) > 30000) {
-        const messageCount = Math.floor((now - session.createdAt) / 120000) + 1; // One every 2 minutes
-        
-        for (let i = 0; i < Math.min(messageCount, 3); i++) {
-          const messageTime = new Date(session.createdAt + 30000 + (i * 120000));
-          messages.push({
-            id: `demo_${i + 1}`,
-            subject: i === 0 ? 'Welcome to TempMonkeyMail!' : `Demo Message ${i + 1}`,
-            from: {
-              address: i === 0 ? 'welcome@tempmonkeymail.com' : `demo${i}@example.com`,
-              name: i === 0 ? 'TempMonkeyMail Team' : `Demo Sender ${i}`
-            },
-            date: messageTime.toISOString(),
-            createdAt: messageTime.toISOString(),
-            text: i === 0 ? 
-              'Welcome to TempMonkeyMail! Your temporary email is working perfectly. This service helps protect your privacy by providing disposable email addresses.' :
-              `This is demo message ${i + 1}. Your temporary email address ${username}@${domain} is active and ready to receive real emails.`,
-            intro: i === 0 ? 'Welcome to TempMonkeyMail! Your temporary email is working...' : `Demo message ${i + 1} content...`,
-            seen: false
-          });
-        }
-        
-        console.log(`📧 Generated ${messages.length} demo messages for demo provider`);
-      }
+      messages.push({
+        id: `somoj_1`,
+        subject:  'Welcome to SomojMail!',
+        from: {
+          address:  'welcome@somojmail.com',
+          name:  'SomojMail Team'
+        },
+        date:  new Date().toISOString(),
+        createdAt:  new Date().toISOString(),
+        text:  'Welcome to SomojMail! Your temporary email is working perfectly.',
+        intro:  'Welcome to SomojMail! Your temporary email is working...',
+        seen: false
+      });
+      console.log(`📧 Generated ${messages.length} somoj messages`);
     }
 
     // Sort messages by date (newest first) and limit to prevent memory issues
@@ -751,7 +583,7 @@ app.delete('/api/messages/:id', async (req, res) => {
     // Note: 1secmail API doesn't support message deletion
     // We'll simulate success but the message won't actually be deleted from their servers
     // This is a limitation of the 1secmail API
-    
+
     res.json({ 
       success: true, 
       note: '1secmail API does not support message deletion. Message will expire automatically.' 
