@@ -565,7 +565,7 @@
       emailDisplay.textContent = 'Generating your email address...';
 
       try {
-        const res = await fetch("http://localhost:5000/api/generate");
+        const res = await fetch("/api/generate");
         const data = await res.json();
         token = data.token;
         address = data.address;
@@ -587,8 +587,9 @@
 
       } catch (error) {
         console.error('Error generating email:', error);
+        console.error('Error details:', error.message, error.stack);
         emailDisplay.textContent = 'Failed to generate email address';
-        showNotification('Failed to generate email. Please try again.', 'error');
+        showNotification(`Failed to generate email: ${error.message}`, 'error');
         
         loadingSpinner.style.display = 'none';
         refreshIcon.style.display = 'block';
@@ -602,7 +603,7 @@
       if (!token) return;
 
       try {
-        const res = await fetch(`http://localhost:5000/api/messages?token=${token}`);
+        const res = await fetch(`/api/messages?token=${token}`);
         if (!res.ok) throw new Error(`HTTP error! status: ${res.status}`);
 
         const messages = await res.json();
@@ -645,7 +646,8 @@
 
       } catch (error) {
         console.error('Error loading inbox:', error);
-        showNotification('Failed to load messages. Please try again.', 'error');
+        console.error('Error details:', error.message, error.stack);
+        showNotification(`Failed to load messages: ${error.message}`, 'error');
       }
     }
 
@@ -709,7 +711,7 @@
       document.body.classList.add('modal-open');
 
       try {
-        const response = await fetch(`http://localhost:5000/api/messages/${message.id}?token=${token}`);
+        const response = await fetch(`/api/messages/${message.id}?token=${token}`);
         if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
 
         const fullMessage = await response.json();
@@ -844,14 +846,6 @@
       document.body.appendChild(notification);
       setTimeout(() => notification.remove(), 4000);
     }
-
-    // Make functions globally accessible BEFORE adding event listeners
-    window.closeEmailModal = closeEmailModal;
-    window.viewEmail = viewEmail;
-    window.generateEmail = generateEmail;
-    window.copyEmail = copyEmail;
-    window.refreshInbox = refreshInbox;
-    window.clearInbox = clearInbox;
 
     // Close modal when clicking outside
     document.getElementById('emailModal').addEventListener('click', function(e) {

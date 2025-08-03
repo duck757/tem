@@ -365,7 +365,7 @@ process.on('SIGINT', () => {
   process.exit(0);
 });
 
-app.listen(PORT, () => {
+app.listen(PORT, '0.0.0.0', () => {
   console.log(`🚀 TempMail server running on port ${PORT}`);
   console.log(`💾 Optimized for 512MB VPS`);
   console.log(`👥 Max sessions: ${MAX_SESSIONS}`);
