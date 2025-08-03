@@ -543,22 +543,12 @@
       const loadingSpinner = document.getElementById('loadingSpinner');
       const refreshIcon = document.getElementById('refreshIcon');
       const emailDisplay = document.getElementById('emailDisplay');
-      const inboxContent = document.getElementById('inboxContent');
 
       isGenerating = true;
       btn.disabled = true;
       loadingSpinner.style.display = 'block';
       refreshIcon.style.display = 'none';
       emailDisplay.textContent = 'Generating your email address...';
-      
-      // Show loading in inbox
-      inboxContent.innerHTML = `
-        <div class="empty-state">
-          <i class="fas fa-spinner fa-spin" style="font-size: 2rem; color: #4ade80; margin-bottom: 1rem;"></i>
-          <h4>Setting up your inbox</h4>
-          <p>Preparing to receive emails...</p>
-        </div>
-      `;
 
       try {
         const res = await fetch("/api/generate");
@@ -585,15 +575,6 @@
         console.error('Error generating email:', error);
         emailDisplay.textContent = 'Failed to generate email address';
         showNotification('Failed to generate email. Please try again.', 'error');
-        
-        // Reset inbox to empty state on error
-        inboxContent.innerHTML = `
-          <div class="empty-state">
-            <i class="fas fa-inbox"></i>
-            <h4>Your inbox is empty</h4>
-            <p>Generate an email address to start receiving messages</p>
-          </div>
-        `;
         
         loadingSpinner.style.display = 'none';
         refreshIcon.style.display = 'block';
