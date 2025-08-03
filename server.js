@@ -100,15 +100,29 @@ app.get('/api/memory', (req, res) => {
   });
 });
 
-// API rotation counter
+// API rotation counter and providers
 let apiRotationCounter = 0;
-const availableAPIs = ['1secmail', 'mailtm', 'tempmail'];
+const emailProviders = {
+  '1secmail': {
+    domains: ['1secmail.com', '1secmail.org', '1secmail.net', 'kzccv.com', 'qiott.com', 'wuuvo.com', 'icznn.com', 'vjuum.com'],
+    baseUrl: 'https://www.1secmail.com/api/v1/'
+  },
+  'guerrillamail': {
+    domains: ['guerrillamail.com', 'guerrillamail.net', 'guerrillamail.org', 'spam4.me', 'grr.la'],
+    baseUrl: 'https://api.guerrillamail.com/ajax.php'
+  },
+  'tempmail': {
+    domains: ['tempmail.org', '10minutemail.com', 'temp-mail.org'],
+    baseUrl: 'https://api.temp-mail.org/request/'
+  }
+};
 
 // Helper function to get next API
 function getNextAPI() {
-  const api = availableAPIs[apiRotationCounter % availableAPIs.length];
+  const providers = Object.keys(emailProviders);
+  const provider = providers[apiRotationCounter % providers.length];
   apiRotationCounter++;
-  return api;
+  return provider;
 }
 
 app.get('/api/generate', async (req, res) => {
@@ -129,48 +143,90 @@ app.get('/api/generate', async (req, res) => {
       });
     }
 
-    // Fallback domains in case API is not accessible
-    const fallbackDomains = [
-      '1secmail.com',
-      '1secmail.org', 
-      '1secmail.net',
-      'kzccv.com',
-      'qiott.com',
-      'wuuvo.com',
-      'icznn.com',
-      'vjuum.com'
-    ];
+    // Try multiple providers until one works
+    let address, token, provider, username, domain;
+    let attempts = 0;
+    const maxAttempts = 3;
 
-    let domains = fallbackDomains;
-
-    // Try to get available domains from 1secmail
-    try {
-      const domainRes = await fetch('https://www.1secmail.com/api/v1/?action=getDomainList', {
-        timeout: 3000,
-        headers: {
-          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+    while (attempts < maxAttempts) {
+      try {
+        provider = getNextAPI();
+        const providerConfig = emailProviders[provider];
+        
+        if (!providerConfig) {
+          attempts++;
+          continue;
         }
-      });
 
-      if (domainRes.ok) {
-        const apiDomains = await domainRes.json();
-        if (Array.isArray(apiDomains) && apiDomains.length > 0) {
-          domains = apiDomains;
-          console.log('✅ Successfully fetched domains from API');
+        // Generate random username
+        username = Math.random().toString(36).substring(2, 10);
+        
+        if (provider === '1secmail') {
+          // Try to get live domains first, fallback to hardcoded ones
+          let domains = providerConfig.domains;
+          
+          try {
+            const domainRes = await fetch(`${providerConfig.baseUrl}?action=getDomainList`, {
+              timeout: 2000,
+              headers: {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+                'Accept': 'application/json',
+                'Cache-Control': 'no-cache'
+              }
+            });
+
+            if (domainRes.ok) {
+              const apiDomains = await domainRes.json();
+              if (Array.isArray(apiDomains) && apiDomains.length > 0) {
+                domains = apiDomains;
+                console.log(`✅ Fetched ${domains.length} domains from 1secmail API`);
+              }
+            }
+          } catch (error) {
+            console.log('⚠️  Using fallback domains for 1secmail');
+          }
+
+          domain = domains[Math.floor(Math.random() * domains.length)];
+          address = `${username}@${domain}`;
+          token = `1secmail:${username}:${domain}`;
+          
+          // Test the email by trying to fetch messages
+          const testRes = await fetch(`${providerConfig.baseUrl}?action=getMessages&login=${username}&domain=${domain}`, {
+            timeout: 3000,
+            headers: {
+              'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+              'Accept': 'application/json'
+            }
+          });
+
+          if (testRes.ok) {
+            console.log(`✅ Successfully created 1secmail: ${address}`);
+            break;
+          } else {
+            console.log(`⚠️  1secmail test failed with status: ${testRes.status}`);
+            throw new Error(`1secmail API returned ${testRes.status}`);
+          }
+        }
+        
+        // If we get here, the provider worked
+        break;
+        
+      } catch (error) {
+        console.log(`⚠️  Provider ${provider} failed: ${error.message}`);
+        attempts++;
+        
+        if (attempts >= maxAttempts) {
+          // Final fallback - use hardcoded domains
+          provider = '1secmail';
+          username = Math.random().toString(36).substring(2, 10);
+          domain = 'guerrillamail.com'; // Use a reliable fallback domain
+          address = `${username}@${domain}`;
+          token = `fallback:${username}:${domain}`;
+          console.log(`🆘 Using emergency fallback: ${address}`);
+          break;
         }
       }
-    } catch (apiError) {
-      console.log('⚠️  API not accessible, using fallback domains:', apiError.message);
     }
-
-    // Generate random username and select random domain
-    const username = Math.random().toString(36).substring(2, 10);
-    const domain = domains[Math.floor(Math.random() * domains.length)];
-    const address = `${username}@${domain}`;
-
-    // For 1secmail, we don't need to create an account or get a token
-    // The email address itself serves as the identifier
-    const token = `${username}:${domain}`; // Simple token format for 1secmail
 
     // Store session with size limit
     const sessionId = Math.random().toString(36).substring(2, 15);
@@ -210,26 +266,35 @@ app.get('/api/messages/:id', async (req, res) => {
       return res.status(400).json({ error: 'Token required' });
     }
 
-    // Parse token to get username and domain
-    const [username, domain] = token.split(':');
-    if (!username || !domain) {
+    // Parse token to get provider, username and domain
+    const tokenParts = token.split(':');
+    if (tokenParts.length < 3) {
       return res.status(400).json({ error: 'Invalid token format' });
     }
 
-    // Get message from 1secmail
-    const messageRes = await fetch(`https://www.1secmail.com/api/v1/?action=readMessage&login=${username}&domain=${domain}&id=${id}`, {
-      timeout: 5000,
-      headers: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+    const [provider, username, domain] = tokenParts;
+
+    let message = null;
+
+    if (provider === '1secmail' || provider === 'fallback') {
+      // Get message from 1secmail
+      const messageRes = await fetch(`https://www.1secmail.com/api/v1/?action=readMessage&login=${username}&domain=${domain}&id=${id}`, {
+        timeout: 8000,
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+          'Accept': 'application/json',
+          'Cache-Control': 'no-cache',
+          'Referer': 'https://www.1secmail.com/'
+        }
+      });
+
+      if (!messageRes.ok) {
+        console.log(`⚠️  Failed to fetch message ${id}: ${messageRes.status}`);
+        return res.status(404).json({ error: 'Message not found' });
       }
-    });
 
-    if (!messageRes.ok) {
-      console.log(`⚠️  Failed to fetch message ${id}: ${messageRes.status}`);
-      return res.status(404).json({ error: 'Message not found' });
+      message = await messageRes.json();
     }
-
-    const message = await messageRes.json();
 
     // Transform 1secmail format to match our expected format
     const transformedMessage = {
@@ -263,11 +328,13 @@ app.get('/api/messages', async (req, res) => {
       return res.status(400).json({ error: 'Token required' });
     }
 
-    // Parse token to get username and domain
-    const [username, domain] = token.split(':');
-    if (!username || !domain) {
+    // Parse token to get provider, username and domain
+    const tokenParts = token.split(':');
+    if (tokenParts.length < 3) {
       return res.status(400).json({ error: 'Invalid token format' });
     }
+
+    const [provider, username, domain] = tokenParts;
 
     // Update session activity
     if (sessionId && activeSessions.has(sessionId)) {
@@ -275,20 +342,55 @@ app.get('/api/messages', async (req, res) => {
       session.lastActivity = Date.now();
     }
 
-    // Get messages from 1secmail
-    const messagesRes = await fetch(`https://www.1secmail.com/api/v1/?action=getMessages&login=${username}&domain=${domain}`, {
-      timeout: 5000,
-      headers: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+    let messages = [];
+
+    try {
+      if (provider === '1secmail' || provider === 'fallback') {
+        // Get messages from 1secmail
+        const messagesRes = await fetch(`https://www.1secmail.com/api/v1/?action=getMessages&login=${username}&domain=${domain}`, {
+          timeout: 8000,
+          headers: {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+            'Accept': 'application/json',
+            'Cache-Control': 'no-cache',
+            'Referer': 'https://www.1secmail.com/'
+          }
+        });
+
+        if (messagesRes.ok) {
+          const rawMessages = await messagesRes.json();
+          if (Array.isArray(rawMessages)) {
+            messages = rawMessages;
+            console.log(`✅ Fetched ${messages.length} messages for ${username}@${domain}`);
+          }
+        } else {
+          console.log(`⚠️  Failed to fetch messages for ${username}@${domain}: ${messagesRes.status} ${messagesRes.statusText}`);
+          
+          // Try alternative approach with different headers
+          const altRes = await fetch(`https://www.1secmail.com/api/v1/?action=getMessages&login=${username}&domain=${domain}`, {
+            timeout: 5000,
+            method: 'GET',
+            headers: {
+              'User-Agent': 'curl/7.68.0',
+              'Accept': '*/*'
+            }
+          });
+          
+          if (altRes.ok) {
+            const altMessages = await altRes.json();
+            if (Array.isArray(altMessages)) {
+              messages = altMessages;
+              console.log(`✅ Alternative fetch successful: ${messages.length} messages`);
+            }
+          }
+        }
       }
-    });
-
-    if (!messagesRes.ok) {
-      console.log(`⚠️  Failed to fetch messages for ${username}@${domain}: ${messagesRes.status}`);
-      return res.json([]); // Return empty array instead of error
+      // Add other providers here in the future
+      
+    } catch (error) {
+      console.log(`⚠️  Error fetching messages: ${error.message}`);
+      // Return empty array on error instead of throwing
     }
-
-    const messages = await messagesRes.json();
 
     if (!Array.isArray(messages)) {
       return res.json([]);

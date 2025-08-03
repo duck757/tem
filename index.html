@@ -521,19 +521,17 @@
     let currentEmailIndex = -1;
     let isGenerating = false;
 
-    // Define closeEmailModal function globally before any other code
+    // Define all functions globally first
     function closeEmailModal() {
       const modal = document.getElementById('emailModal');
       if (modal) {
         modal.style.display = 'none';
         document.body.classList.remove('modal-open');
-
-        // Force background color to stay dark
         document.body.style.background = '#1a1a1a';
       }
     }
 
-    // Make it globally accessible immediately
+    // Make functions globally accessible immediately
     window.closeEmailModal = closeEmailModal;
 
     async function generateEmail() {
