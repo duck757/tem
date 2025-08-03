@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -408,7 +407,7 @@
       body {
         padding: 1rem 0.5rem;
       }
-      
+
       .email-address-section {
         padding: 1.5rem 1rem;
       }
@@ -522,14 +521,16 @@
     let currentEmailIndex = -1;
     let isGenerating = false;
 
-    // Define closeEmailModal function first to ensure it's available globally
+    // Define closeEmailModal function globally before any other code
     function closeEmailModal() {
       const modal = document.getElementById('emailModal');
-      modal.style.display = 'none';
-      document.body.classList.remove('modal-open');
-      
-      // Force background color to stay dark
-      document.body.style.background = '#1a1a1a';
+      if (modal) {
+        modal.style.display = 'none';
+        document.body.classList.remove('modal-open');
+
+        // Force background color to stay dark
+        document.body.style.background = '#1a1a1a';
+      }
     }
 
     // Make it globally accessible immediately
@@ -537,7 +538,7 @@
 
     async function generateEmail() {
       if (isGenerating) return;
-      
+
       const btn = document.getElementById('generateBtn');
       const loadingContainer = document.getElementById('loadingContainer');
       const loadingSpinner = document.getElementById('loadingSpinner');
@@ -575,7 +576,7 @@
         console.error('Error generating email:', error);
         emailDisplay.textContent = 'Failed to generate email address';
         showNotification('Failed to generate email. Please try again.', 'error');
-        
+
         loadingSpinner.style.display = 'none';
         refreshIcon.style.display = 'block';
       } finally {
@@ -765,7 +766,7 @@
       }
     }
 
-    
+
 
     function formatDate(dateString) {
       const date = new Date(dateString);

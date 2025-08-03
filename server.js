@@ -100,6 +100,17 @@ app.get('/api/memory', (req, res) => {
   });
 });
 
+// API rotation counter
+let apiRotationCounter = 0;
+const availableAPIs = ['1secmail', 'mailtm', 'tempmail'];
+
+// Helper function to get next API
+function getNextAPI() {
+  const api = availableAPIs[apiRotationCounter % availableAPIs.length];
+  apiRotationCounter++;
+  return api;
+}
+
 app.get('/api/generate', async (req, res) => {
   try {
     // Check memory usage first
@@ -140,7 +151,7 @@ app.get('/api/generate', async (req, res) => {
           'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
         }
       });
-      
+
       if (domainRes.ok) {
         const apiDomains = await domainRes.json();
         if (Array.isArray(apiDomains) && apiDomains.length > 0) {
@@ -327,7 +338,7 @@ app.delete('/api/messages/:id', async (req, res) => {
     // Note: 1secmail API doesn't support message deletion
     // We'll simulate success but the message won't actually be deleted from their servers
     // This is a limitation of the 1secmail API
-    
+
     res.json({ 
       success: true, 
       note: '1secmail API does not support message deletion. Message will expire automatically.' 
