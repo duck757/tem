@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -43,7 +44,7 @@
 
     .header-section h1 {
       font-family: 'Orbitron', monospace;
-      font-size: 1.6rem;
+      font-size: 2rem;
       font-weight: 900;
       color: #ffffff;
       margin-bottom: 1rem;
@@ -407,7 +408,7 @@
       body {
         padding: 1rem 0.5rem;
       }
-
+      
       .email-address-section {
         padding: 1.5rem 1rem;
       }
@@ -514,16 +515,6 @@
   </div>
 
   <script>
-    // Define global functions FIRST before any other code
-    window.closeEmailModal = function() {
-      const modal = document.getElementById('emailModal');
-      if (modal) {
-        modal.style.display = 'none';
-        document.body.classList.remove('modal-open');
-        document.body.style.background = '#1a1a1a';
-      }
-    };
-
     let token = "", address = "";
     let refreshInterval = null;
     let autoRefreshEnabled = true;
@@ -531,9 +522,22 @@
     let currentEmailIndex = -1;
     let isGenerating = false;
 
+    // Define closeEmailModal function first to ensure it's available globally
+    function closeEmailModal() {
+      const modal = document.getElementById('emailModal');
+      modal.style.display = 'none';
+      document.body.classList.remove('modal-open');
+      
+      // Force background color to stay dark
+      document.body.style.background = '#1a1a1a';
+    }
+
+    // Make it globally accessible immediately
+    window.closeEmailModal = closeEmailModal;
+
     async function generateEmail() {
       if (isGenerating) return;
-
+      
       const btn = document.getElementById('generateBtn');
       const loadingContainer = document.getElementById('loadingContainer');
       const loadingSpinner = document.getElementById('loadingSpinner');
@@ -571,7 +575,7 @@
         console.error('Error generating email:', error);
         emailDisplay.textContent = 'Failed to generate email address';
         showNotification('Failed to generate email. Please try again.', 'error');
-
+        
         loadingSpinner.style.display = 'none';
         refreshIcon.style.display = 'block';
       } finally {
@@ -761,7 +765,7 @@
       }
     }
 
-
+    
 
     function formatDate(dateString) {
       const date = new Date(dateString);
