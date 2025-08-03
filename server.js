@@ -165,55 +165,74 @@ app.get('/api/generate', async (req, res) => {
       try {
         console.log('🔄 Trying mail.tm service...');
 
-        // Get available domains from mail.tm
+        // Get available domains from mail.tm with proper timeout handling
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 8000);
+
         const domainsResponse = await fetch('https://api.mail.tm/domains', {
-          timeout: 10000,
+          signal: controller.signal,
           headers: {
             'Accept': 'application/json',
-            'User-Agent': 'TempMail/1.0'
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
           }
         });
+        clearTimeout(timeoutId);
 
         if (domainsResponse.ok) {
           const domainsData = await domainsResponse.json();
+          console.log('📧 Mail.tm domains response:', domainsData);
+          
           const domains = domainsData['hydra:member'] || [];
 
           if (domains.length > 0) {
             const domain = domains[0].domain;
-            const username = Math.random().toString(36).substring(2, 12);
+            const username = Math.random().toString(36).substring(2, 10);
             const address = `${username}@${domain}`;
-            const password = Math.random().toString(36).substring(2, 15);
+            const password = Math.random().toString(36).substring(2, 12) + Math.random().toString(36).substring(2, 8).toUpperCase() + '123!';
+
+            console.log(`📧 Creating mail.tm account: ${address}`);
 
             // Create account on mail.tm
+            const createController = new AbortController();
+            const createTimeoutId = setTimeout(() => createController.abort(), 8000);
+
             const createResponse = await fetch('https://api.mail.tm/accounts', {
               method: 'POST',
+              signal: createController.signal,
               headers: {
                 'Content-Type': 'application/json',
                 'Accept': 'application/json',
-                'User-Agent': 'TempMail/1.0'
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
               },
               body: JSON.stringify({
                 address: address,
                 password: password
               })
             });
+            clearTimeout(createTimeoutId);
 
             if (createResponse.ok) {
               const accountData = await createResponse.json();
+              console.log('📧 Mail.tm account created:', accountData.id);
 
               // Get JWT token
+              const tokenController = new AbortController();
+              const tokenTimeoutId = setTimeout(() => tokenController.abort(), 8000);
+
               const tokenResponse = await fetch('https://api.mail.tm/token', {
                 method: 'POST',
+                signal: tokenController.signal,
                 headers: {
                   'Content-Type': 'application/json',
                   'Accept': 'application/json',
-                  'User-Agent': 'TempMail/1.0'
+                  'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
                 },
                 body: JSON.stringify({
                   address: address,
                   password: password
                 })
               });
+              clearTimeout(tokenTimeoutId);
 
               if (tokenResponse.ok) {
                 const tokenData = await tokenResponse.json();
@@ -230,6 +249,7 @@ app.get('/api/generate', async (req, res) => {
                   provider: 'mailtm',
                   accountId: accountData.id,
                   jwtToken: jwtToken,
+                  password: password,
                   createdAt: Date.now(),
                   lastActivity: Date.now(),
                   messageCount: 0
@@ -244,12 +264,27 @@ app.get('/api/generate', async (req, res) => {
                   provider: 'mailtm',
                   expiresAt: Date.now() + MAX_AGE
                 });
+              } else {
+                const errorText = await tokenResponse.text();
+                console.log('⚠️  Mail.tm token error:', tokenResponse.status, errorText);
               }
+            } else {
+              const errorText = await createResponse.text();
+              console.log('⚠️  Mail.tm create account error:', createResponse.status, errorText);
             }
+          } else {
+            console.log('⚠️  No domains available from mail.tm');
           }
+        } else {
+          const errorText = await domainsResponse.text();
+          console.log('⚠️  Mail.tm domains error:', domainsResponse.status, errorText);
         }
       } catch (error) {
-        console.log('⚠️  mail.tm failed:', error.message);
+        if (error.name === 'AbortError') {
+          console.log('⚠️  mail.tm request timeout');
+        } else {
+          console.log('⚠️  mail.tm failed:', error.message);
+        }
       }
     }
 
@@ -286,14 +321,18 @@ app.get('/api/messages/:id', async (req, res) => {
       const [, accountId, jwtToken] = tokenParts;
 
       try {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 8000);
+
         const messageRes = await fetch(`https://api.mail.tm/messages/${id}`, {
-          timeout: 10000,
+          signal: controller.signal,
           headers: {
             'Authorization': `Bearer ${jwtToken}`,
             'Accept': 'application/json',
-            'User-Agent': 'TempMail/1.0'
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
           }
         });
+        clearTimeout(timeoutId);
 
         if (messageRes.ok) {
           const data = await messageRes.json();
@@ -310,9 +349,16 @@ app.get('/api/messages/:id', async (req, res) => {
             html: data.html || data.text || data.intro || '',
             intro: data.intro || ''
           };
+        } else {
+          const errorText = await messageRes.text();
+          console.log(`⚠️  mail.tm message API error: ${messageRes.status} - ${errorText}`);
         }
       } catch (error) {
-        console.log(`⚠️  Error fetching mail.tm message ${id}:`, error.message);
+        if (error.name === 'AbortError') {
+          console.log('⚠️  mail.tm message request timeout');
+        } else {
+          console.log(`⚠️  Error fetching mail.tm message ${id}:`, error.message);
+        }
       }
 
     
@@ -390,14 +436,18 @@ app.get('/api/messages', async (req, res) => {
       const [, accountId, jwtToken] = tokenParts;
 
       try {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 8000);
+
         const messagesRes = await fetch('https://api.mail.tm/messages', {
-          timeout: 10000,
+          signal: controller.signal,
           headers: {
             'Authorization': `Bearer ${jwtToken}`,
             'Accept': 'application/json',
-            'User-Agent': 'TempMail/1.0'
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
           }
         });
+        clearTimeout(timeoutId);
 
         if (messagesRes.ok) {
           const data = await messagesRes.json();
@@ -418,10 +468,15 @@ app.get('/api/messages', async (req, res) => {
             console.log(`📧 Fetched ${messages.length} messages from mail.tm`);
           }
         } else {
-          console.log(`⚠️  mail.tm API error: ${messagesRes.status}`);
+          const errorText = await messagesRes.text();
+          console.log(`⚠️  mail.tm messages API error: ${messagesRes.status} - ${errorText}`);
         }
       } catch (error) {
-        console.log(`⚠️  Error fetching mail.tm messages:`, error.message);
+        if (error.name === 'AbortError') {
+          console.log('⚠️  mail.tm messages request timeout');
+        } else {
+          console.log(`⚠️  Error fetching mail.tm messages:`, error.message);
+        }
       }
 
     
