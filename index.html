@@ -565,7 +565,7 @@
       emailDisplay.textContent = 'Generating your email address...';
 
       try {
-        const res = await fetch("/api/generate");
+        const res = await fetch("http://localhost:5000/api/generate");
         const data = await res.json();
         token = data.token;
         address = data.address;
@@ -602,7 +602,7 @@
       if (!token) return;
 
       try {
-        const res = await fetch(`/api/messages?token=${token}`);
+        const res = await fetch(`http://localhost:5000/api/messages?token=${token}`);
         if (!res.ok) throw new Error(`HTTP error! status: ${res.status}`);
 
         const messages = await res.json();
@@ -709,7 +709,7 @@
       document.body.classList.add('modal-open');
 
       try {
-        const response = await fetch(`/api/messages/${message.id}?token=${token}`);
+        const response = await fetch(`http://localhost:5000/api/messages/${message.id}?token=${token}`);
         if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
 
         const fullMessage = await response.json();
@@ -845,6 +845,14 @@
       setTimeout(() => notification.remove(), 4000);
     }
 
+    // Make functions globally accessible BEFORE adding event listeners
+    window.closeEmailModal = closeEmailModal;
+    window.viewEmail = viewEmail;
+    window.generateEmail = generateEmail;
+    window.copyEmail = copyEmail;
+    window.refreshInbox = refreshInbox;
+    window.clearInbox = clearInbox;
+
     // Close modal when clicking outside
     document.getElementById('emailModal').addEventListener('click', function(e) {
       if (e.target === this) {
@@ -858,14 +866,6 @@
         closeEmailModal();
       }
     });
-
-    // Make functions globally accessible
-    window.closeEmailModal = closeEmailModal;
-    window.viewEmail = viewEmail;
-    window.generateEmail = generateEmail;
-    window.copyEmail = copyEmail;
-    window.refreshInbox = refreshInbox;
-    window.clearInbox = clearInbox;
 
     // Auto-generate email on page load
     window.addEventListener('load', function() {

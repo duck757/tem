@@ -14,6 +14,11 @@ const MEMORY_THRESHOLD = 400; // MB - trigger cleanup if memory usage exceeds th
 app.use(express.static(__dirname));
 app.use(express.json({ limit: '512kb' })); // Reduced from 1mb for 512MB VPS
 
+// Serve index.html at root
+app.get('/', (req, res) => {
+  res.sendFile(path.join(__dirname, 'index.html'));
+});
+
 // Store active sessions with size limit
 const activeSessions = new Map();
 
