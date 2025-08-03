@@ -17,13 +17,18 @@
 
     body { 
       font-family: 'Inter', sans-serif; 
-      background: #1a1a1a;
+      background: #1a1a1a !important;
       color: #ffffff;
       min-height: 100vh;
       display: flex;
       flex-direction: column;
       align-items: center;
       padding: 2rem 1rem;
+    }
+
+    body.modal-open {
+      background: #1a1a1a !important;
+      overflow: hidden;
     }
 
     .main-container {
@@ -285,22 +290,24 @@
     .modal-overlay {
       position: fixed;
       inset: 0;
-      background: rgba(0, 0, 0, 0.8);
+      background: rgba(0, 0, 0, 0.95) !important;
       display: flex;
       align-items: center;
       justify-content: center;
       z-index: 50;
       padding: 1rem;
+      backdrop-filter: blur(2px);
     }
 
     .modal-content {
-      background: #2a2a2a;
+      background: #2a2a2a !important;
       border-radius: 12px;
       max-width: 800px;
       width: 100%;
       max-height: 90vh;
       overflow: hidden;
       border: 1px solid #333;
+      color: #fff !important;
     }
 
     .modal-header {
@@ -699,6 +706,7 @@
         </div>
       `;
       modal.style.display = 'flex';
+      document.body.classList.add('modal-open');
 
       try {
         const response = await fetch(`/api/messages/${message.id}?token=${token}`);
@@ -774,6 +782,10 @@
     function closeEmailModal() {
       const modal = document.getElementById('emailModal');
       modal.style.display = 'none';
+      document.body.classList.remove('modal-open');
+      
+      // Force background color to stay dark
+      document.body.style.background = '#1a1a1a';
     }
     
     // Ensure function is globally accessible
