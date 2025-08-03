@@ -224,9 +224,10 @@
     }
 
     .loading-dots {
-      display: inline-flex;
-      gap: 4px;
-      margin-left: 4px;
+      display: flex;
+      justify-content: center;
+      gap: 6px;
+      margin-top: 1rem;
     }
 
     .loading-dots span {
@@ -530,7 +531,8 @@
         <div class="empty-state">
           <i class="fas fa-inbox"></i>
           <h4>Your inbox is empty</h4>
-          <p>Waiting for incoming emails<span class="loading-dots"><span></span><span></span><span></span></span></p>
+          <p>Waiting for incoming emails</p>
+          <div class="loading-dots"><span></span><span></span><span></span></div>
         </div>
       </div>
     </div>
@@ -661,7 +663,8 @@
             <div class="empty-state">
               <i class="fas fa-inbox"></i>
               <h4>Your inbox is empty</h4>
-              <p>Waiting for incoming emails<span class="loading-dots"><span></span><span></span><span></span></span></p>
+              <p>Waiting for incoming emails</p>
+              <div class="loading-dots"><span></span><span></span><span></span></div>
             </div>
           `;
           return;
