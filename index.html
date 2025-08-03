@@ -775,6 +775,9 @@
       const modal = document.getElementById('emailModal');
       modal.style.display = 'none';
     }
+    
+    // Ensure function is globally accessible
+    window.closeEmailModal = closeEmailModal;
 
     function formatDate(dateString) {
       const date = new Date(dateString);
@@ -843,6 +846,14 @@
         closeEmailModal();
       }
     });
+
+    // Make functions globally accessible
+    window.closeEmailModal = closeEmailModal;
+    window.viewEmail = viewEmail;
+    window.generateEmail = generateEmail;
+    window.copyEmail = copyEmail;
+    window.refreshInbox = refreshInbox;
+    window.clearInbox = clearInbox;
 
     // Auto-generate email on page load
     window.addEventListener('load', function() {
