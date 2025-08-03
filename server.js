@@ -102,7 +102,7 @@ app.get('/api/memory', (req, res) => {
 
 // API rotation counter and providers
 let apiRotationCounter = 0;
-const emailProviders = ['somoj', 'mailtm'];
+const emailProviders = ['mailtm', 'guerrillamail'];
 
 // Helper function to get next API
 function getNextAPI() {
@@ -135,12 +135,31 @@ app.get('/api/generate', async (req, res) => {
     provider = getNextAPI();
     username = Math.random().toString(36).substring(2, 10);
 
-    if (provider === 'somoj') {
-      domain = 'somoj.com';
-      address = `${username}@${domain}`;
-      token = `somoj:${username}:${domain}`;
-      console.log(`✅ Generated somoj.com email: ${address}`);
-    } else if (provider === 'mailtm') {
+    if (provider === 'guerrillamail') {
+      try {
+        // Get email from GuerrillaMail
+        const response = await fetch('https://www.guerrillamail.com/ajax.php?f=get_email_address', {
+          timeout: 5000,
+          headers: {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+          }
+        });
+
+        if (response.ok) {
+          const data = await response.json();
+          address = data.email_addr;
+          token = `guerrillamail:${data.sid_token}:${data.email_addr}`;
+          console.log(`✅ Generated guerrillamail email: ${address}`);
+        } else {
+          throw new Error('Failed to get GuerrillaMail address');
+        }
+      } catch (error) {
+        console.log(`⚠️  GuerrillaMail failed: ${error.message}, falling back to mail.tm`);
+        provider = 'mailtm';
+      }
+    }
+
+    if (provider === 'mailtm') {
       try {
         // Get available domains from mail.tm
         const domainsRes = await fetch('https://api.mail.tm/domains', {
@@ -260,16 +279,22 @@ app.get('/api/messages/:id', async (req, res) => {
 
     let message = null;
 
-    if (provider === 'somoj') {
-      // For somoj.com, return demo message
-      message = {
-        id: id,
-        subject: 'Demo Message',
-        from: 'demo@example.com',
-        date: new Date().toISOString(),
-        textBody: 'This is a demo message for somoj.com email.',
-        htmlBody: '<p>This is a demo message for somoj.com email.</p>'
-      };
+    if (provider === 'guerrillamail') {
+      // Get message from GuerrillaMail
+      const sidToken = tokenParts[1];
+      const messageRes = await fetch(`https://www.guerrillamail.com/ajax.php?f=fetch_email&email_id=${id}&sid_token=${sidToken}`, {
+        timeout: 8000,
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+        }
+      });
+
+      if (!messageRes.ok) {
+        console.log(`⚠️  Failed to fetch message ${id} from GuerrillaMail: ${messageRes.status}`);
+        return res.status(404).json({ error: 'Message not found' });
+      }
+
+      message = await messageRes.json();
     } else if (provider === 'mailtm') {
       // Get message from mail.tm
       const jwtToken = tokenParts[1];
@@ -295,17 +320,17 @@ app.get('/api/messages/:id', async (req, res) => {
 
     // Transform message format to match our expected format
     const transformedMessage = {
-      id: message.id,
-      subject: message.subject,
+      id: message.mail_id || message.id,
+      subject: message.mail_subject || message.subject,
       from: {
-        address: message.from?.address || message.from,
-        name: message.from?.name || message.from
+        address: message.mail_from || message.from?.address || message.from,
+        name: message.mail_from || message.from?.name || message.from
       },
-      date: message.createdAt || message.date,
-      createdAt: message.createdAt || message.date,
-      text: message.text || message.textBody || '',
-      html: message.html || message.htmlBody || message.text || message.textBody || '',
-      intro: (message.text || message.textBody || '').substring(0, 100) + '...'
+      date: message.mail_timestamp || message.createdAt || message.date,
+      createdAt: message.mail_timestamp || message.createdAt || message.date,
+      text: message.mail_body || message.text || message.textBody || '',
+      html: message.mail_body || message.html || message.htmlBody || message.text || message.textBody || '',
+      intro: (message.mail_excerpt || message.text || message.textBody || '').substring(0, 100) + '...'
     };
 
     res.json(transformedMessage);
@@ -342,11 +367,26 @@ app.get('/api/messages', async (req, res) => {
     let messages = [];
 
     try {
-      if (provider === 'somoj') {
-        // For somoj.com, we'll simulate message fetching (demo mode)
-        // In a real implementation, you would connect to the somoj.com API
-        messages = [];
-        console.log(`✅ Checked messages for ${username}@${domain} (demo mode)`);
+      if (provider === 'guerrillamail') {
+        // Get messages from GuerrillaMail
+        const sidToken = tokenParts[1];
+        const messagesRes = await fetch(`https://www.guerrillamail.com/ajax.php?f=get_email_list&offset=0&sid_token=${sidToken}`, {
+          timeout: 8000,
+          headers: {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+          }
+        });
+
+        if (messagesRes.ok) {
+          const messagesData = await messagesRes.json();
+          const rawMessages = messagesData.list || [];
+          if (Array.isArray(rawMessages)) {
+            messages = rawMessages;
+            console.log(`✅ Fetched ${messages.length} messages from GuerrillaMail`);
+          }
+        } else {
+          console.log(`⚠️  Failed to fetch messages from GuerrillaMail: ${messagesRes.status}`);
+        }
       } else if (provider === 'mailtm') {
         // Get messages from mail.tm
         const jwtToken = tokenParts[1];
@@ -381,17 +421,17 @@ app.get('/api/messages', async (req, res) => {
 
     // Transform message format to match our expected format
     const transformedMessages = messages.map(msg => ({
-      id: msg.id,
-      subject: msg.subject,
+      id: msg.mail_id || msg.id,
+      subject: msg.mail_subject || msg.subject,
       from: {
-        address: msg.from?.address || msg.from,
-        name: msg.from?.name || msg.from
+        address: msg.mail_from || msg.from?.address || msg.from,
+        name: msg.mail_from || msg.from?.name || msg.from
       },
-      date: msg.createdAt || msg.date,
-      createdAt: msg.createdAt || msg.date,
-      text: msg.text || msg.textBody || '',
-      intro: (msg.text || msg.textBody || '').substring(0, 100) + '...',
-      seen: msg.seen || false
+      date: msg.mail_timestamp || msg.createdAt || msg.date,
+      createdAt: msg.mail_timestamp || msg.createdAt || msg.date,
+      text: msg.mail_excerpt || msg.text || msg.textBody || '',
+      intro: (msg.mail_excerpt || msg.text || msg.textBody || '').substring(0, 100) + '...',
+      seen: msg.mail_read || msg.seen || false
     }));
 
     // Sort messages by date (newest first) and limit to prevent memory issues

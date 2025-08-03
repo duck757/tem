@@ -514,25 +514,22 @@
   </div>
 
   <script>
-    let token = "", address = "";
-    let refreshInterval = null;
-    let autoRefreshEnabled = true;
-    let currentMessages = [];
-    let currentEmailIndex = -1;
-    let isGenerating = false;
-
-    // Define all functions globally first
-    function closeEmailModal() {
+    // Define global functions FIRST before any other code
+    window.closeEmailModal = function() {
       const modal = document.getElementById('emailModal');
       if (modal) {
         modal.style.display = 'none';
         document.body.classList.remove('modal-open');
         document.body.style.background = '#1a1a1a';
       }
-    }
+    };
 
-    // Make functions globally accessible immediately
-    window.closeEmailModal = closeEmailModal;
+    let token = "", address = "";
+    let refreshInterval = null;
+    let autoRefreshEnabled = true;
+    let currentMessages = [];
+    let currentEmailIndex = -1;
+    let isGenerating = false;
 
     async function generateEmail() {
       if (isGenerating) return;
