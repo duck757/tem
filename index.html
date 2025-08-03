@@ -174,46 +174,23 @@
 
     .inbox-header {
       background: #1a1a1a;
-      padding: 1rem 1.5rem;
+      padding: 0.5rem 1.5rem;
       border-bottom: 1px solid #333;
       display: flex;
-      justify-content: space-between;
+      justify-content: center;
       align-items: center;
+      position: relative;
     }
 
-    .inbox-header h3 {
-      font-size: 0.85rem;
-      font-weight: 500;
-      text-transform: uppercase;
-      letter-spacing: 1px;
-      color: #fff;
-    }
-
-    .tab-buttons {
-      display: flex;
-      gap: 0;
-    }
-
-    .tab-btn {
-      background: transparent;
-      border: none;
-      color: #888;
-      padding: 0.5rem 1rem;
-      font-size: 0.8rem;
-      text-transform: uppercase;
-      letter-spacing: 0.5px;
-      cursor: pointer;
-      border-bottom: 2px solid transparent;
-      transition: all 0.2s ease;
-    }
-
-    .tab-btn.active {
-      color: #fff;
-      border-bottom-color: #4ade80;
-    }
-
-    .tab-btn:hover {
-      color: #fff;
+    .inbox-header::after {
+      content: '';
+      position: absolute;
+      bottom: 0;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 60px;
+      height: 2px;
+      background: #4ade80;
     }
 
     .inbox-content {
@@ -457,13 +434,7 @@
       }
 
       .inbox-header {
-        flex-direction: column;
-        gap: 1rem;
-        align-items: stretch;
-      }
-
-      .tab-buttons {
-        justify-content: center;
+        padding: 0.5rem;
       }
     }
   </style>
@@ -516,11 +487,6 @@
     <!-- Inbox Section -->
     <div class="inbox-section">
       <div class="inbox-header">
-        <div class="tab-buttons">
-          <button class="tab-btn active">Sender</button>
-          <button class="tab-btn">Subject</button>
-          <button class="tab-btn">View</button>
-        </div>
       </div>
 
       <div class="inbox-content" id="inboxContent">
