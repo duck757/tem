@@ -118,43 +118,114 @@ app.get('/api/generate', async (req, res) => {
       });
     }
 
-    // Multiple email service providers for redundancy
-    const emailProviders = [
-      {
-        name: 'guerrillamail',
-        domains: ['guerrillamail.com', 'guerrillamail.net', 'guerrillamail.org', 'guerrillamail.biz', 'guerrillamail.de'],
-        generateUrl: 'https://api.guerrillamail.com/ajax.php?f=get_email_address',
-        messagesUrl: 'https://api.guerrillamail.com/ajax.php?f=get_email_list&offset=0',
-        readUrl: 'https://api.guerrillamail.com/ajax.php?f=fetch_email'
-      },
-      {
-        name: '10minutemail',
-        domains: ['10minutemail.com', '10minutemail.net'],
-        generateUrl: 'https://10minutemail.com/10MinuteMail/resources/session/address',
-        messagesUrl: 'https://10minutemail.com/10MinuteMail/resources/messages/messagesAfter/0',
-        readUrl: 'https://10minutemail.com/10MinuteMail/resources/messages/message'
-      }
-    ];
-
-    // Try guerrillamail first
+    // Try mail.tm first
     try {
-      console.log('🔄 Trying GuerrillaMail service...');
-      const response = await fetch(emailProviders[0].generateUrl, {
+      console.log('🔄 Trying mail.tm service...');
+      
+      // Get available domains from mail.tm
+      const domainsResponse = await fetch('https://api.mail.tm/domains', {
         timeout: 10000,
         headers: {
-          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
           'Accept': 'application/json',
-          'Origin': 'https://guerrillamail.com',
-          'Referer': 'https://guerrillamail.com/'
+          'User-Agent': 'TempMail/1.0'
         }
       });
 
-      if (response.ok) {
-        const data = await response.json();
-        if (data.email_addr) {
-          const address = data.email_addr;
-          const [username, domain] = address.split('@');
-          const token = `guerrilla:${data.sid_token || username}:${domain}`;
+      if (domainsResponse.ok) {
+        const domainsData = await domainsResponse.json();
+        const domains = domainsData['hydra:member'] || [];
+        
+        if (domains.length > 0) {
+          const domain = domains[0].domain;
+          const username = Math.random().toString(36).substring(2, 12);
+          const address = `${username}@${domain}`;
+          const password = Math.random().toString(36).substring(2, 15);
+
+          // Create account on mail.tm
+          const createResponse = await fetch('https://api.mail.tm/accounts', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Accept': 'application/json',
+              'User-Agent': 'TempMail/1.0'
+            },
+            body: JSON.stringify({
+              address: address,
+              password: password
+            })
+          });
+
+          if (createResponse.ok) {
+            const accountData = await createResponse.json();
+            
+            // Get JWT token
+            const tokenResponse = await fetch('https://api.mail.tm/token', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'Accept': 'application/json',
+                'User-Agent': 'TempMail/1.0'
+              },
+              body: JSON.stringify({
+                address: address,
+                password: password
+              })
+            });
+
+            if (tokenResponse.ok) {
+              const tokenData = await tokenResponse.json();
+              const jwtToken = tokenData.token;
+              const token = `mailtm:${accountData.id}:${jwtToken}`;
+
+              // Store session
+              const sessionId = Math.random().toString(36).substring(2, 15);
+              activeSessions.set(sessionId, { 
+                address,
+                username,
+                domain,
+                token, 
+                provider: 'mailtm',
+                accountId: accountData.id,
+                jwtToken: jwtToken,
+                createdAt: Date.now(),
+                lastActivity: Date.now(),
+                messageCount: 0
+              });
+
+              console.log(`📧 Generated mail.tm email: ${address}`);
+              return res.json({ 
+                address, 
+                token, 
+                sessionId,
+                domain,
+                provider: 'mailtm',
+                expiresAt: Date.now() + MAX_AGE
+              });
+            }
+          }
+        }
+      }
+    } catch (error) {
+      console.log('⚠️  mail.tm failed:', error.message);
+    }
+
+    // Try 1secmail.com as backup
+    try {
+      console.log('🔄 Trying 1secmail.com service...');
+      const domainsResponse = await fetch('https://www.1secmail.com/api/v1/?action=getDomainList', {
+        timeout: 10000,
+        headers: {
+          'User-Agent': 'TempMail/1.0'
+        }
+      });
+
+      if (domainsResponse.ok) {
+        const domains = await domainsResponse.json();
+        if (Array.isArray(domains) && domains.length > 0) {
+          const domain = domains[Math.floor(Math.random() * domains.length)];
+          const username = Math.random().toString(36).substring(2, 12);
+          const address = `${username}@${domain}`;
+          const token = `1secmail:${username}:${domain}`;
 
           // Store session
           const sessionId = Math.random().toString(36).substring(2, 15);
@@ -163,42 +234,86 @@ app.get('/api/generate', async (req, res) => {
             username,
             domain,
             token, 
-            provider: 'guerrillamail',
-            sid_token: data.sid_token,
+            provider: '1secmail',
             createdAt: Date.now(),
             lastActivity: Date.now(),
             messageCount: 0
           });
 
-          console.log(`📧 Generated GuerrillaMail email: ${address}`);
+          console.log(`📧 Generated 1secmail email: ${address}`);
           return res.json({ 
             address, 
             token, 
             sessionId,
             domain,
-            provider: 'guerrillamail',
+            provider: '1secmail',
             expiresAt: Date.now() + MAX_AGE
           });
         }
       }
     } catch (error) {
-      console.log('⚠️  GuerrillaMail failed:', error.message);
+      console.log('⚠️  1secmail failed:', error.message);
     }
 
-    // Fallback to simple email generation with working domains
-    console.log('🔄 Using fallback email generation...');
-    const workingDomains = [
-      'tempmail.org',
-      'temp-mail.org', 
-      'throwaway.email',
-      'mailinator.com',
-      'maildrop.cc'
+    // Try tempmail.lol as third option
+    try {
+      console.log('🔄 Trying tempmail.lol service...');
+      const response = await fetch('https://api.tempmail.lol/generate', {
+        timeout: 10000,
+        headers: {
+          'Accept': 'application/json',
+          'User-Agent': 'TempMail/1.0'
+        }
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        if (data.address) {
+          const address = data.address;
+          const [username, domain] = address.split('@');
+          const token = `tempmail-lol:${data.token || username}:${domain}`;
+
+          // Store session
+          const sessionId = Math.random().toString(36).substring(2, 15);
+          activeSessions.set(sessionId, { 
+            address,
+            username,
+            domain,
+            token, 
+            provider: 'tempmail-lol',
+            apiToken: data.token,
+            createdAt: Date.now(),
+            lastActivity: Date.now(),
+            messageCount: 0
+          });
+
+          console.log(`📧 Generated tempmail.lol email: ${address}`);
+          return res.json({ 
+            address, 
+            token, 
+            sessionId,
+            domain,
+            provider: 'tempmail-lol',
+            expiresAt: Date.now() + MAX_AGE
+          });
+        }
+      }
+    } catch (error) {
+      console.log('⚠️  tempmail.lol failed:', error.message);
+    }
+
+    // Fallback to demo mode if all APIs fail
+    console.log('🔄 All APIs failed, using demo mode...');
+    const demodomains = [
+      'demo-tempmail.com',
+      'demo-mail.org', 
+      'demo-email.net'
     ];
 
     const username = Math.random().toString(36).substring(2, 12);
-    const domain = workingDomains[Math.floor(Math.random() * workingDomains.length)];
+    const domain = demodomains[Math.floor(Math.random() * demodomains.length)];
     const address = `${username}@${domain}`;
-    const token = `fallback:${username}:${domain}`;
+    const token = `demo:${username}:${domain}`;
 
     // Store session
     const sessionId = Math.random().toString(36).substring(2, 15);
@@ -207,20 +322,20 @@ app.get('/api/generate', async (req, res) => {
       username,
       domain,
       token, 
-      provider: 'fallback',
+      provider: 'demo',
       createdAt: Date.now(),
       lastActivity: Date.now(),
       messageCount: 0
     });
 
-    console.log(`📧 Generated fallback email: ${address}`);
+    console.log(`📧 Generated demo email: ${address}`);
 
     res.json({ 
       address, 
       token, 
       sessionId,
       domain,
-      provider: 'fallback',
+      provider: 'demo',
       expiresAt: Date.now() + MAX_AGE
     });
 
@@ -246,45 +361,107 @@ app.get('/api/messages/:id', async (req, res) => {
 
     let message = null;
 
-    if (provider === 'guerrilla') {
-      // GuerrillaMail provider
-      const [, sidToken] = tokenParts;
+    if (provider === 'mailtm') {
+      // mail.tm provider
+      const [, accountId, jwtToken] = tokenParts;
       
       try {
-        const messageRes = await fetch(`https://api.guerrillamail.com/ajax.php?f=fetch_email&email_id=${id}&sid_token=${sidToken}`, {
+        const messageRes = await fetch(`https://api.mail.tm/messages/${id}`, {
           timeout: 10000,
           headers: {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+            'Authorization': `Bearer ${jwtToken}`,
             'Accept': 'application/json',
-            'Origin': 'https://guerrillamail.com',
-            'Referer': 'https://guerrillamail.com/'
+            'User-Agent': 'TempMail/1.0'
           }
         });
 
         if (messageRes.ok) {
           const data = await messageRes.json();
-          if (data.mail_id) {
-            message = {
-              id: data.mail_id,
-              subject: data.mail_subject || 'No Subject',
-              from: {
-                address: data.mail_from,
-                name: data.mail_from
-              },
-              date: data.mail_timestamp ? new Date(data.mail_timestamp * 1000).toISOString() : new Date().toISOString(),
-              createdAt: data.mail_timestamp ? new Date(data.mail_timestamp * 1000).toISOString() : new Date().toISOString(),
-              text: data.mail_body || '',
-              html: data.mail_body || '',
-              intro: data.mail_body ? data.mail_body.substring(0, 100) + '...' : ''
-            };
-          }
+          message = {
+            id: data.id,
+            subject: data.subject || 'No Subject',
+            from: {
+              address: data.from?.address || 'unknown@email.com',
+              name: data.from?.name || data.from?.address || 'Unknown'
+            },
+            date: data.createdAt || new Date().toISOString(),
+            createdAt: data.createdAt || new Date().toISOString(),
+            text: data.text || data.intro || '',
+            html: data.html || data.text || data.intro || '',
+            intro: data.intro || ''
+          };
         }
       } catch (error) {
-        console.log(`⚠️  Error fetching GuerrillaMail message ${id}:`, error.message);
+        console.log(`⚠️  Error fetching mail.tm message ${id}:`, error.message);
       }
 
-    } else if (provider === 'fallback') {
-      // For fallback provider, return demo message content
+    } else if (provider === '1secmail') {
+      // 1secmail provider
+      const [, username, domain] = tokenParts;
+      
+      try {
+        const messageRes = await fetch(`https://www.1secmail.com/api/v1/?action=readMessage&login=${username}&domain=${domain}&id=${id}`, {
+          timeout: 10000,
+          headers: {
+            'User-Agent': 'TempMail/1.0'
+          }
+        });
+
+        if (messageRes.ok) {
+          const data = await messageRes.json();
+          message = {
+            id: data.id,
+            subject: data.subject || 'No Subject',
+            from: {
+              address: data.from,
+              name: data.from
+            },
+            date: data.date || new Date().toISOString(),
+            createdAt: data.date || new Date().toISOString(),
+            text: data.textBody || data.body || '',
+            html: data.htmlBody || data.textBody || data.body || '',
+            intro: data.textBody ? data.textBody.substring(0, 100) + '...' : ''
+          };
+        }
+      } catch (error) {
+        console.log(`⚠️  Error fetching 1secmail message ${id}:`, error.message);
+      }
+
+    } else if (provider === 'tempmail-lol') {
+      // tempmail.lol provider
+      const [, apiToken, domain] = tokenParts;
+      
+      try {
+        const messageRes = await fetch(`https://api.tempmail.lol/auth/${apiToken}/messages/${id}`, {
+          timeout: 10000,
+          headers: {
+            'Accept': 'application/json',
+            'User-Agent': 'TempMail/1.0'
+          }
+        });
+
+        if (messageRes.ok) {
+          const data = await messageRes.json();
+          message = {
+            id: data.id,
+            subject: data.subject || 'No Subject',
+            from: {
+              address: data.from,
+              name: data.from
+            },
+            date: data.date || new Date().toISOString(),
+            createdAt: data.date || new Date().toISOString(),
+            text: data.body || '',
+            html: data.html || data.body || '',
+            intro: data.body ? data.body.substring(0, 100) + '...' : ''
+          };
+        }
+      } catch (error) {
+        console.log(`⚠️  Error fetching tempmail.lol message ${id}:`, error.message);
+      }
+
+    } else if (provider === 'demo') {
+      // Demo provider - return demo message content
       const demoMessages = {
         'demo_1': {
           id: 'demo_1',
@@ -399,52 +576,126 @@ app.get('/api/messages', async (req, res) => {
 
     let messages = [];
 
-    if (provider === 'guerrilla') {
-      // GuerrillaMail provider
-      const [, sidToken, domain] = tokenParts;
+    if (provider === 'mailtm') {
+      // mail.tm provider
+      const [, accountId, jwtToken] = tokenParts;
       
       try {
-        const messagesRes = await fetch(`https://api.guerrillamail.com/ajax.php?f=get_email_list&offset=0&sid_token=${sidToken}`, {
+        const messagesRes = await fetch('https://api.mail.tm/messages', {
           timeout: 10000,
           headers: {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+            'Authorization': `Bearer ${jwtToken}`,
             'Accept': 'application/json',
-            'Origin': 'https://guerrillamail.com',
-            'Referer': 'https://guerrillamail.com/'
+            'User-Agent': 'TempMail/1.0'
           }
         });
 
         if (messagesRes.ok) {
           const data = await messagesRes.json();
-          if (data.list && Array.isArray(data.list)) {
-            messages = data.list.map(msg => ({
-              id: msg.mail_id,
-              subject: msg.mail_subject || 'No Subject',
+          if (data['hydra:member'] && Array.isArray(data['hydra:member'])) {
+            messages = data['hydra:member'].map(msg => ({
+              id: msg.id,
+              subject: msg.subject || 'No Subject',
               from: {
-                address: msg.mail_from,
-                name: msg.mail_from
+                address: msg.from?.address || 'unknown@email.com',
+                name: msg.from?.name || msg.from?.address || 'Unknown'
               },
-              date: msg.mail_timestamp ? new Date(msg.mail_timestamp * 1000).toISOString() : new Date().toISOString(),
-              createdAt: msg.mail_timestamp ? new Date(msg.mail_timestamp * 1000).toISOString() : new Date().toISOString(),
-              text: msg.mail_excerpt || '',
-              intro: msg.mail_excerpt ? msg.mail_excerpt.substring(0, 100) + '...' : '',
-              seen: msg.mail_read === '1'
+              date: msg.createdAt || new Date().toISOString(),
+              createdAt: msg.createdAt || new Date().toISOString(),
+              text: msg.intro || '',
+              intro: msg.intro ? msg.intro.substring(0, 100) + '...' : '',
+              seen: msg.seen || false
             }));
-            console.log(`📧 Fetched ${messages.length} messages from GuerrillaMail`);
+            console.log(`📧 Fetched ${messages.length} messages from mail.tm`);
           }
         } else {
-          console.log(`⚠️  GuerrillaMail API error: ${messagesRes.status}`);
+          console.log(`⚠️  mail.tm API error: ${messagesRes.status}`);
         }
       } catch (error) {
-        console.log(`⚠️  Error fetching GuerrillaMail messages:`, error.message);
+        console.log(`⚠️  Error fetching mail.tm messages:`, error.message);
       }
 
-    } else if (provider === 'fallback') {
-      // For fallback provider, simulate some demo messages periodically
+    } else if (provider === '1secmail') {
+      // 1secmail provider
+      const [, username, domain] = tokenParts;
+      
+      try {
+        const messagesRes = await fetch(`https://www.1secmail.com/api/v1/?action=getMessages&login=${username}&domain=${domain}`, {
+          timeout: 10000,
+          headers: {
+            'User-Agent': 'TempMail/1.0'
+          }
+        });
+
+        if (messagesRes.ok) {
+          const data = await messagesRes.json();
+          if (Array.isArray(data)) {
+            messages = data.map(msg => ({
+              id: msg.id,
+              subject: msg.subject || 'No Subject',
+              from: {
+                address: msg.from,
+                name: msg.from
+              },
+              date: msg.date || new Date().toISOString(),
+              createdAt: msg.date || new Date().toISOString(),
+              text: msg.textBody || '',
+              intro: msg.textBody ? msg.textBody.substring(0, 100) + '...' : '',
+              seen: false
+            }));
+            console.log(`📧 Fetched ${messages.length} messages from 1secmail`);
+          }
+        } else {
+          console.log(`⚠️  1secmail API error: ${messagesRes.status}`);
+        }
+      } catch (error) {
+        console.log(`⚠️  Error fetching 1secmail messages:`, error.message);
+      }
+
+    } else if (provider === 'tempmail-lol') {
+      // tempmail.lol provider
+      const [, apiToken, domain] = tokenParts;
+      
+      try {
+        const messagesRes = await fetch(`https://api.tempmail.lol/auth/${apiToken}/messages`, {
+          timeout: 10000,
+          headers: {
+            'Accept': 'application/json',
+            'User-Agent': 'TempMail/1.0'
+          }
+        });
+
+        if (messagesRes.ok) {
+          const data = await messagesRes.json();
+          if (data.email && Array.isArray(data.email)) {
+            messages = data.email.map(msg => ({
+              id: msg.id,
+              subject: msg.subject || 'No Subject',
+              from: {
+                address: msg.from,
+                name: msg.from
+              },
+              date: msg.date || new Date().toISOString(),
+              createdAt: msg.date || new Date().toISOString(),
+              text: msg.body || '',
+              intro: msg.body ? msg.body.substring(0, 100) + '...' : '',
+              seen: false
+            }));
+            console.log(`📧 Fetched ${messages.length} messages from tempmail.lol`);
+          }
+        } else {
+          console.log(`⚠️  tempmail.lol API error: ${messagesRes.status}`);
+        }
+      } catch (error) {
+        console.log(`⚠️  Error fetching tempmail.lol messages:`, error.message);
+      }
+
+    } else if (provider === 'demo') {
+      // Demo provider - simulate messages
       const [, username, domain] = tokenParts;
       const now = Date.now();
       
-      // Add a welcome message after 30 seconds, and demo messages every 2 minutes
+      // Add demo messages after 30 seconds
       if (session && (now - session.createdAt) > 30000) {
         const messageCount = Math.floor((now - session.createdAt) / 120000) + 1; // One every 2 minutes
         
@@ -467,14 +718,8 @@ app.get('/api/messages', async (req, res) => {
           });
         }
         
-        console.log(`📧 Generated ${messages.length} demo messages for fallback provider`);
+        console.log(`📧 Generated ${messages.length} demo messages for demo provider`);
       }
-
-    } else {
-      // Legacy 1secmail provider (keeping for backward compatibility)
-      const [username, domain] = tokenParts;
-      // Return empty array since 1secmail is blocked
-      console.log(`⚠️  1secmail provider blocked, returning empty inbox`);
     }
 
     // Sort messages by date (newest first) and limit to prevent memory issues
