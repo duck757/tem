@@ -589,10 +589,15 @@
         showNotification('Email address generated successfully!', 'success');
 
       } catch (error) {
-        console.error('Error generating email:', error.message || error);
-        console.error('Error details:', error.stack || 'No stack trace available');
+        console.error('Error generating email:', error);
         emailDisplay.textContent = 'Failed to generate email address';
-        showNotification(`Failed to generate email: ${error.message || 'Unknown error'}`, 'error');
+        
+        let errorMessage = 'Connection failed';
+        if (error.message) {
+          errorMessage = error.message.includes('fetch') ? 'Server connection failed' : error.message;
+        }
+        
+        showNotification(`Failed to generate email: ${errorMessage}`, 'error');
         
         loadingSpinner.style.display = 'none';
         refreshIcon.style.display = 'block';
@@ -651,9 +656,14 @@
         `;
 
       } catch (error) {
-        console.error('Error loading inbox:', error.message || error);
-        console.error('Error details:', error.stack || 'No stack trace available');
-        showNotification(`Failed to load messages: ${error.message || 'Unknown error'}`, 'error');
+        console.error('Error loading inbox:', error);
+        
+        let errorMessage = 'Failed to load messages';
+        if (error.message) {
+          errorMessage = error.message.includes('fetch') ? 'Server connection failed' : error.message;
+        }
+        
+        showNotification(errorMessage, 'error');
       }
     }
 

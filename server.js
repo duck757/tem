@@ -11,6 +11,14 @@ const MAX_AGE = 60 * 60 * 1000; // 1 hour (reduced from 2h for 512MB VPS)
 const MAX_MESSAGES_PER_SESSION = 25; // Limit messages per session
 const MEMORY_THRESHOLD = 400; // MB - trigger cleanup if memory usage exceeds this
 
+// Add CORS headers
+app.use((req, res, next) => {
+  res.header('Access-Control-Allow-Origin', '*');
+  res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization');
+  res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+  next();
+});
+
 app.use(express.static(__dirname));
 app.use(express.json({ limit: '512kb' })); // Reduced from 1mb for 512MB VPS
 
@@ -373,5 +381,5 @@ app.listen(PORT, '0.0.0.0', () => {
   console.log(`🧹 Cleanup interval: ${SESSION_CLEANUP_INTERVAL / 1000 / 60} minutes`);
   console.log(`📊 Memory threshold: ${MEMORY_THRESHOLD}MB`);
   console.log(`📧 Max messages per session: ${MAX_MESSAGES_PER_SESSION}`);
-  console.log(`🌐 Visit http://localhost:${PORT} to use the service`);
+  console.log(`🌐 Server accessible on all interfaces`);
 });
