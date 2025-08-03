@@ -6,7 +6,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <meta name="description" content="TempMail - Free Disposable Email Service">
   <title>TempMail - Free Disposable Email</title>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=Orbitron:wght@700;900&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
   <style>
     * {
@@ -43,11 +43,18 @@
     }
 
     .header-section h1 {
-      font-size: 1.5rem;
-      font-weight: 400;
+      font-family: 'Orbitron', monospace;
+      font-size: 2rem;
+      font-weight: 900;
       color: #ffffff;
       margin-bottom: 1rem;
-      letter-spacing: 0.5px;
+      letter-spacing: 2px;
+      text-shadow: 0 0 10px rgba(74, 222, 128, 0.3);
+    }
+
+    .header-section h1 .mail-text {
+      color: #ffd700;
+      text-shadow: 0 0 15px rgba(255, 215, 0, 0.4);
     }
 
     .email-address-section {
@@ -435,7 +442,7 @@
   <div class="main-container">
     <!-- Header -->
     <div class="header-section">
-      <h1>Your Temporary Email Address</h1>
+      <h1>TEMPMONKEY<span class="mail-text">MAIL</span></h1>
     </div>
 
     <!-- Email Address Section -->
