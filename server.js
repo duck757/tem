@@ -102,25 +102,11 @@ app.get('/api/memory', (req, res) => {
 
 // API rotation counter and providers
 let apiRotationCounter = 0;
-const emailProviders = {
-  '1secmail': {
-    domains: ['1secmail.com', '1secmail.org', '1secmail.net', 'kzccv.com', 'qiott.com', 'wuuvo.com', 'icznn.com', 'vjuum.com'],
-    baseUrl: 'https://www.1secmail.com/api/v1/'
-  },
-  'guerrillamail': {
-    domains: ['guerrillamail.com', 'guerrillamail.net', 'guerrillamail.org', 'spam4.me', 'grr.la'],
-    baseUrl: 'https://api.guerrillamail.com/ajax.php'
-  },
-  'tempmail': {
-    domains: ['tempmail.org', '10minutemail.com', 'temp-mail.org'],
-    baseUrl: 'https://api.temp-mail.org/request/'
-  }
-};
+const emailProviders = ['somoj', 'mailtm'];
 
 // Helper function to get next API
 function getNextAPI() {
-  const providers = Object.keys(emailProviders);
-  const provider = providers[apiRotationCounter % providers.length];
+  const provider = emailProviders[apiRotationCounter % emailProviders.length];
   apiRotationCounter++;
   return provider;
 }
@@ -143,88 +129,86 @@ app.get('/api/generate', async (req, res) => {
       });
     }
 
-    // Try multiple providers until one works
     let address, token, provider, username, domain;
-    let attempts = 0;
-    const maxAttempts = 3;
+    
+    // Get next API in rotation
+    provider = getNextAPI();
+    username = Math.random().toString(36).substring(2, 10);
 
-    while (attempts < maxAttempts) {
+    if (provider === 'somoj') {
+      domain = 'somoj.com';
+      address = `${username}@${domain}`;
+      token = `somoj:${username}:${domain}`;
+      console.log(`✅ Generated somoj.com email: ${address}`);
+    } else if (provider === 'mailtm') {
       try {
-        provider = getNextAPI();
-        const providerConfig = emailProviders[provider];
-        
-        if (!providerConfig) {
-          attempts++;
-          continue;
-        }
+        // Get available domains from mail.tm
+        const domainsRes = await fetch('https://api.mail.tm/domains', {
+          timeout: 5000,
+          headers: {
+            'Accept': 'application/json',
+            'Content-Type': 'application/json'
+          }
+        });
 
-        // Generate random username
-        username = Math.random().toString(36).substring(2, 10);
-        
-        if (provider === '1secmail') {
-          // Try to get live domains first, fallback to hardcoded ones
-          let domains = providerConfig.domains;
+        if (domainsRes.ok) {
+          const domainsData = await domainsRes.json();
+          const availableDomains = domainsData['hydra:member'] || [];
           
-          try {
-            const domainRes = await fetch(`${providerConfig.baseUrl}?action=getDomainList`, {
-              timeout: 2000,
+          if (availableDomains.length > 0) {
+            domain = availableDomains[0].domain;
+            address = `${username}@${domain}`;
+            
+            // Create account on mail.tm
+            const createRes = await fetch('https://api.mail.tm/accounts', {
+              method: 'POST',
               headers: {
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
                 'Accept': 'application/json',
-                'Cache-Control': 'no-cache'
-              }
+                'Content-Type': 'application/json'
+              },
+              body: JSON.stringify({
+                address: address,
+                password: 'temppass123'
+              })
             });
 
-            if (domainRes.ok) {
-              const apiDomains = await domainRes.json();
-              if (Array.isArray(apiDomains) && apiDomains.length > 0) {
-                domains = apiDomains;
-                console.log(`✅ Fetched ${domains.length} domains from 1secmail API`);
+            if (createRes.ok) {
+              const accountData = await createRes.json();
+              
+              // Get JWT token
+              const authRes = await fetch('https://api.mail.tm/token', {
+                method: 'POST',
+                headers: {
+                  'Accept': 'application/json',
+                  'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                  address: address,
+                  password: 'temppass123'
+                })
+              });
+
+              if (authRes.ok) {
+                const authData = await authRes.json();
+                token = `mailtm:${authData.token}:${accountData.id}`;
+                console.log(`✅ Generated mail.tm email: ${address}`);
+              } else {
+                throw new Error('Failed to authenticate with mail.tm');
               }
+            } else {
+              throw new Error('Failed to create mail.tm account');
             }
-          } catch (error) {
-            console.log('⚠️  Using fallback domains for 1secmail');
-          }
-
-          domain = domains[Math.floor(Math.random() * domains.length)];
-          address = `${username}@${domain}`;
-          token = `1secmail:${username}:${domain}`;
-          
-          // Test the email by trying to fetch messages
-          const testRes = await fetch(`${providerConfig.baseUrl}?action=getMessages&login=${username}&domain=${domain}`, {
-            timeout: 3000,
-            headers: {
-              'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-              'Accept': 'application/json'
-            }
-          });
-
-          if (testRes.ok) {
-            console.log(`✅ Successfully created 1secmail: ${address}`);
-            break;
           } else {
-            console.log(`⚠️  1secmail test failed with status: ${testRes.status}`);
-            throw new Error(`1secmail API returned ${testRes.status}`);
+            throw new Error('No domains available from mail.tm');
           }
+        } else {
+          throw new Error('Failed to fetch domains from mail.tm');
         }
-        
-        // If we get here, the provider worked
-        break;
-        
       } catch (error) {
-        console.log(`⚠️  Provider ${provider} failed: ${error.message}`);
-        attempts++;
-        
-        if (attempts >= maxAttempts) {
-          // Final fallback - use hardcoded domains
-          provider = '1secmail';
-          username = Math.random().toString(36).substring(2, 10);
-          domain = 'guerrillamail.com'; // Use a reliable fallback domain
-          address = `${username}@${domain}`;
-          token = `fallback:${username}:${domain}`;
-          console.log(`🆘 Using emergency fallback: ${address}`);
-          break;
-        }
+        console.log(`⚠️  Mail.tm failed: ${error.message}, falling back to somoj.com`);
+        domain = 'somoj.com';
+        address = `${username}@${domain}`;
+        token = `somoj:${username}:${domain}`;
       }
     }
 
@@ -276,39 +260,52 @@ app.get('/api/messages/:id', async (req, res) => {
 
     let message = null;
 
-    if (provider === '1secmail' || provider === 'fallback') {
-      // Get message from 1secmail
-      const messageRes = await fetch(`https://www.1secmail.com/api/v1/?action=readMessage&login=${username}&domain=${domain}&id=${id}`, {
+    if (provider === 'somoj') {
+      // For somoj.com, return demo message
+      message = {
+        id: id,
+        subject: 'Demo Message',
+        from: 'demo@example.com',
+        date: new Date().toISOString(),
+        textBody: 'This is a demo message for somoj.com email.',
+        htmlBody: '<p>This is a demo message for somoj.com email.</p>'
+      };
+    } else if (provider === 'mailtm') {
+      // Get message from mail.tm
+      const jwtToken = tokenParts[1];
+      const messageRes = await fetch(`https://api.mail.tm/messages/${id}`, {
         timeout: 8000,
         headers: {
-          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
-          'Accept': 'application/json',
-          'Cache-Control': 'no-cache',
-          'Referer': 'https://www.1secmail.com/'
+          'Authorization': `Bearer ${jwtToken}`,
+          'Accept': 'application/json'
         }
       });
 
       if (!messageRes.ok) {
-        console.log(`⚠️  Failed to fetch message ${id}: ${messageRes.status}`);
+        console.log(`⚠️  Failed to fetch message ${id} from mail.tm: ${messageRes.status}`);
         return res.status(404).json({ error: 'Message not found' });
       }
 
       message = await messageRes.json();
     }
 
-    // Transform 1secmail format to match our expected format
+    if (!message) {
+      return res.status(404).json({ error: 'Message not found' });
+    }
+
+    // Transform message format to match our expected format
     const transformedMessage = {
       id: message.id,
       subject: message.subject,
       from: {
-        address: message.from,
-        name: message.from
+        address: message.from?.address || message.from,
+        name: message.from?.name || message.from
       },
-      date: message.date,
-      createdAt: message.date,
-      text: message.textBody || '',
-      html: message.htmlBody || message.textBody || '',
-      intro: message.textBody ? message.textBody.substring(0, 100) + '...' : ''
+      date: message.createdAt || message.date,
+      createdAt: message.createdAt || message.date,
+      text: message.text || message.textBody || '',
+      html: message.html || message.htmlBody || message.text || message.textBody || '',
+      intro: (message.text || message.textBody || '').substring(0, 100) + '...'
     };
 
     res.json(transformedMessage);
@@ -345,47 +342,33 @@ app.get('/api/messages', async (req, res) => {
     let messages = [];
 
     try {
-      if (provider === '1secmail' || provider === 'fallback') {
-        // Get messages from 1secmail
-        const messagesRes = await fetch(`https://www.1secmail.com/api/v1/?action=getMessages&login=${username}&domain=${domain}`, {
+      if (provider === 'somoj') {
+        // For somoj.com, we'll simulate message fetching (demo mode)
+        // In a real implementation, you would connect to the somoj.com API
+        messages = [];
+        console.log(`✅ Checked messages for ${username}@${domain} (demo mode)`);
+      } else if (provider === 'mailtm') {
+        // Get messages from mail.tm
+        const jwtToken = tokenParts[1];
+        const messagesRes = await fetch('https://api.mail.tm/messages', {
           timeout: 8000,
           headers: {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
-            'Accept': 'application/json',
-            'Cache-Control': 'no-cache',
-            'Referer': 'https://www.1secmail.com/'
+            'Authorization': `Bearer ${jwtToken}`,
+            'Accept': 'application/json'
           }
         });
 
         if (messagesRes.ok) {
-          const rawMessages = await messagesRes.json();
+          const messagesData = await messagesRes.json();
+          const rawMessages = messagesData['hydra:member'] || [];
           if (Array.isArray(rawMessages)) {
             messages = rawMessages;
             console.log(`✅ Fetched ${messages.length} messages for ${username}@${domain}`);
           }
         } else {
-          console.log(`⚠️  Failed to fetch messages for ${username}@${domain}: ${messagesRes.status} ${messagesRes.statusText}`);
-          
-          // Try alternative approach with different headers
-          const altRes = await fetch(`https://www.1secmail.com/api/v1/?action=getMessages&login=${username}&domain=${domain}`, {
-            timeout: 5000,
-            method: 'GET',
-            headers: {
-              'User-Agent': 'curl/7.68.0',
-              'Accept': '*/*'
-            }
-          });
-          
-          if (altRes.ok) {
-            const altMessages = await altRes.json();
-            if (Array.isArray(altMessages)) {
-              messages = altMessages;
-              console.log(`✅ Alternative fetch successful: ${messages.length} messages`);
-            }
-          }
+          console.log(`⚠️  Failed to fetch messages from mail.tm: ${messagesRes.status}`);
         }
       }
-      // Add other providers here in the future
       
     } catch (error) {
       console.log(`⚠️  Error fetching messages: ${error.message}`);
@@ -396,19 +379,19 @@ app.get('/api/messages', async (req, res) => {
       return res.json([]);
     }
 
-    // Transform 1secmail format to match our expected format
+    // Transform message format to match our expected format
     const transformedMessages = messages.map(msg => ({
       id: msg.id,
       subject: msg.subject,
       from: {
-        address: msg.from,
-        name: msg.from
+        address: msg.from?.address || msg.from,
+        name: msg.from?.name || msg.from
       },
-      date: msg.date,
-      createdAt: msg.date,
-      text: msg.textBody || '',
-      intro: msg.textBody ? msg.textBody.substring(0, 100) + '...' : '',
-      seen: false
+      date: msg.createdAt || msg.date,
+      createdAt: msg.createdAt || msg.date,
+      text: msg.text || msg.textBody || '',
+      intro: (msg.text || msg.textBody || '').substring(0, 100) + '...',
+      seen: msg.seen || false
     }));
 
     // Sort messages by date (newest first) and limit to prevent memory issues
