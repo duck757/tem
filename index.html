@@ -561,18 +561,15 @@
     let currentEmailIndex = -1;
     let isGenerating = false;
 
-    // Define closeEmailModal function first to ensure it's available globally
-    function closeEmailModal() {
+    // Define closeEmailModal function globally
+    window.closeEmailModal = function() {
       const modal = document.getElementById('emailModal');
       modal.style.display = 'none';
       document.body.classList.remove('modal-open');
       
       // Force background color to stay dark
       document.body.style.background = '#1a1a1a';
-    }
-
-    // Make it globally accessible immediately
-    window.closeEmailModal = closeEmailModal;
+    };
 
     async function generateEmail() {
       if (isGenerating) return;
@@ -895,7 +892,6 @@
     });
 
     // Make functions globally accessible
-    window.closeEmailModal = closeEmailModal;
     window.viewEmail = viewEmail;
     window.generateEmail = generateEmail;
     window.copyEmail = copyEmail;

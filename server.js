@@ -1,6 +1,18 @@
 const express = require('express');
 const fetch = require('node-fetch');
 const path = require('path');
+
+// AbortController polyfill for older Node.js versions
+if (!global.AbortController) {
+  global.AbortController = class AbortController {
+    constructor() {
+      this.signal = { aborted: false };
+    }
+    abort() {
+      this.signal.aborted = true;
+    }
+  };
+}
 const app = express();
 const PORT = process.env.PORT || 5000;
 
