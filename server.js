@@ -132,12 +132,16 @@ app.get('/api/generate', async (req, res) => {
 
     let domains = fallbackDomains;
 
-    // Try to get available domains from 1secmail
+    // Try to get available domains from 1secmail with better headers
     try {
       const domainRes = await fetch('https://www.1secmail.com/api/v1/?action=getDomainList', {
-        timeout: 3000,
+        timeout: 8000,
         headers: {
-          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+          'Accept': 'application/json, text/plain, */*',
+          'Accept-Language': 'en-US,en;q=0.9',
+          'Referer': 'https://www.1secmail.com/',
+          'Cache-Control': 'no-cache'
         }
       });
       
@@ -145,8 +149,10 @@ app.get('/api/generate', async (req, res) => {
         const apiDomains = await domainRes.json();
         if (Array.isArray(apiDomains) && apiDomains.length > 0) {
           domains = apiDomains;
-          console.log('✅ Successfully fetched domains from API');
+          console.log('✅ Successfully fetched domains from API:', apiDomains.slice(0, 3).join(', '));
         }
+      } else {
+        console.log('⚠️  Domain API returned:', domainRes.status);
       }
     } catch (apiError) {
       console.log('⚠️  API not accessible, using fallback domains:', apiError.message);
@@ -205,16 +211,51 @@ app.get('/api/messages/:id', async (req, res) => {
       return res.status(400).json({ error: 'Invalid token format' });
     }
 
-    // Get message from 1secmail
-    const messageRes = await fetch(`https://www.1secmail.com/api/v1/?action=readMessage&login=${username}&domain=${domain}&id=${id}`, {
-      timeout: 5000,
-      headers: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
-      }
-    });
+    // Get message from 1secmail with retry logic
+    let messageRes;
+    let retryCount = 0;
+    const maxRetries = 3;
 
-    if (!messageRes.ok) {
-      console.log(`⚠️  Failed to fetch message ${id}: ${messageRes.status}`);
+    while (retryCount < maxRetries) {
+      try {
+        if (retryCount > 0) {
+          await new Promise(resolve => setTimeout(resolve, 1000 + Math.random() * 2000));
+        }
+
+        messageRes = await fetch(`https://www.1secmail.com/api/v1/?action=readMessage&login=${username}&domain=${domain}&id=${id}`, {
+          timeout: 10000,
+          headers: {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+            'Accept': 'application/json, text/plain, */*',
+            'Accept-Language': 'en-US,en;q=0.9',
+            'Referer': 'https://www.1secmail.com/',
+            'Cache-Control': 'no-cache'
+          }
+        });
+
+        if (messageRes.ok) {
+          break;
+        }
+
+        if (messageRes.status === 403) {
+          console.log(`⚠️  403 Forbidden for message ${id}, attempt ${retryCount + 1}/${maxRetries}`);
+          retryCount++;
+          continue;
+        }
+
+        break;
+
+      } catch (error) {
+        console.log(`⚠️  Network error for message ${id}, attempt ${retryCount + 1}/${maxRetries}:`, error.message);
+        retryCount++;
+        if (retryCount >= maxRetries) {
+          return res.status(500).json({ error: 'Failed to fetch message after retries' });
+        }
+      }
+    }
+
+    if (!messageRes || !messageRes.ok) {
+      console.log(`⚠️  Failed to fetch message ${id}: ${messageRes ? messageRes.status : 'Network Error'}`);
       return res.status(404).json({ error: 'Message not found' });
     }
 
@@ -264,16 +305,54 @@ app.get('/api/messages', async (req, res) => {
       session.lastActivity = Date.now();
     }
 
-    // Get messages from 1secmail
-    const messagesRes = await fetch(`https://www.1secmail.com/api/v1/?action=getMessages&login=${username}&domain=${domain}`, {
-      timeout: 5000,
-      headers: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
-      }
-    });
+    // Get messages from 1secmail with retry logic
+    let messagesRes;
+    let retryCount = 0;
+    const maxRetries = 3;
 
-    if (!messagesRes.ok) {
-      console.log(`⚠️  Failed to fetch messages for ${username}@${domain}: ${messagesRes.status}`);
+    while (retryCount < maxRetries) {
+      try {
+        // Add random delay to avoid rate limiting
+        if (retryCount > 0) {
+          await new Promise(resolve => setTimeout(resolve, 1000 + Math.random() * 2000));
+        }
+
+        messagesRes = await fetch(`https://www.1secmail.com/api/v1/?action=getMessages&login=${username}&domain=${domain}`, {
+          timeout: 10000,
+          headers: {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+            'Accept': 'application/json, text/plain, */*',
+            'Accept-Language': 'en-US,en;q=0.9',
+            'Accept-Encoding': 'gzip, deflate, br',
+            'Cache-Control': 'no-cache',
+            'Pragma': 'no-cache'
+          }
+        });
+
+        if (messagesRes.ok) {
+          break; // Success, exit retry loop
+        }
+
+        if (messagesRes.status === 403) {
+          console.log(`⚠️  403 Forbidden for ${username}@${domain}, attempt ${retryCount + 1}/${maxRetries}`);
+          retryCount++;
+          continue;
+        }
+
+        // For other non-200 status codes, break and handle below
+        break;
+
+      } catch (error) {
+        console.log(`⚠️  Network error for ${username}@${domain}, attempt ${retryCount + 1}/${maxRetries}:`, error.message);
+        retryCount++;
+        if (retryCount >= maxRetries) {
+          return res.json([]); // Return empty array after all retries failed
+        }
+      }
+    }
+
+    if (!messagesRes || !messagesRes.ok) {
+      console.log(`⚠️  Failed to fetch messages for ${username}@${domain}: ${messagesRes ? messagesRes.status : 'Network Error'}`);
       return res.json([]); // Return empty array instead of error
     }
 
