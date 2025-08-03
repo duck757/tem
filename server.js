@@ -19,7 +19,7 @@ const activeSessions = new Map();
 
 // API rotation counter  
 let apiRotationCounter = 0;
-const availableAPIs = ['somoj', '1secmail', 'mailtm'];
+const availableAPIs = ['somoj', 'mailtm'];
 
 // Memory monitoring with alerts
 const getMemoryUsage = () => {
@@ -253,53 +253,7 @@ app.get('/api/generate', async (req, res) => {
       }
     }
 
-    // Try 1secmail.com as backup
-    if (apiToUse === '1secmail') {
-      try {
-        console.log('🔄 Trying 1secmail.com service...');
-        const domainsResponse = await fetch('https://www.1secmail.com/api/v1/?action=getDomainList', {
-          timeout: 10000,
-          headers: {
-            'User-Agent': 'TempMail/1.0'
-          }
-        });
-
-        if (domainsResponse.ok) {
-          const domains = await domainsResponse.json();
-          if (Array.isArray(domains) && domains.length > 0) {
-            const domain = domains[Math.floor(Math.random() * domains.length)];
-            const username = Math.random().toString(36).substring(2, 12);
-            const address = `${username}@${domain}`;
-            const token = `1secmail:${username}:${domain}`;
-
-            // Store session
-            const sessionId = Math.random().toString(36).substring(2, 15);
-            activeSessions.set(sessionId, { 
-              address,
-              username,
-              domain,
-              token, 
-              provider: '1secmail',
-              createdAt: Date.now(),
-              lastActivity: Date.now(),
-              messageCount: 0
-            });
-
-            console.log(`📧 Generated 1secmail email: ${address}`);
-            return res.json({ 
-              address, 
-              token, 
-              sessionId,
-              domain,
-              provider: '1secmail',
-              expiresAt: Date.now() + MAX_AGE
-            });
-          }
-        }
-      } catch (error) {
-        console.log('⚠️  1secmail failed:', error.message);
-      }
-    }
+    
 
     // If all APIs fail
     console.log('🔄 All APIs failed');
@@ -361,37 +315,7 @@ app.get('/api/messages/:id', async (req, res) => {
         console.log(`⚠️  Error fetching mail.tm message ${id}:`, error.message);
       }
 
-    } else if (provider === '1secmail') {
-      // 1secmail provider
-      const [, username, domain] = tokenParts;
-
-      try {
-        const messageRes = await fetch(`https://www.1secmail.com/api/v1/?action=readMessage&login=${username}&domain=${domain}&id=${id}`, {
-          timeout: 10000,
-          headers: {
-            'User-Agent': 'TempMail/1.0'
-          }
-        });
-
-        if (messageRes.ok) {
-          const data = await messageRes.json();
-          message = {
-            id: data.id,
-            subject: data.subject || 'No Subject',
-            from: {
-              address: data.from,
-              name: data.from
-            },
-            date: data.date || new Date().toISOString(),
-            createdAt: data.date || new Date().toISOString(),
-            text: data.textBody || data.body || '',
-            html: data.htmlBody || data.textBody || data.body || '',
-            intro: data.textBody ? data.textBody.substring(0, 100) + '...' : ''
-          };
-        }
-      } catch (error) {
-        console.log(`⚠️  Error fetching 1secmail message ${id}:`, error.message);
-      }
+    
 
     } else if (provider === 'somoj') {
          const [, username, domain] = tokenParts;
@@ -500,42 +424,7 @@ app.get('/api/messages', async (req, res) => {
         console.log(`⚠️  Error fetching mail.tm messages:`, error.message);
       }
 
-    } else if (provider === '1secmail') {
-      // 1secmail provider
-      const [, username, domain] = tokenParts;
-
-      try {
-        const messagesRes = await fetch(`https://www.1secmail.com/api/v1/?action=getMessages&login=${username}&domain=${domain}`, {
-          timeout: 10000,
-          headers: {
-            'User-Agent': 'TempMail/1.0'
-          }
-        });
-
-        if (messagesRes.ok) {
-          const data = await messagesRes.json();
-          if (Array.isArray(data)) {
-            messages = data.map(msg => ({
-              id: msg.id,
-              subject: msg.subject || 'No Subject',
-              from: {
-                address: msg.from,
-                name: msg.from
-              },
-              date: msg.date || new Date().toISOString(),
-              createdAt: msg.date || new Date().toISOString(),
-              text: msg.textBody || '',
-              intro: msg.textBody ? msg.textBody.substring(0, 100) + '...' : '',
-              seen: false
-            }));
-            console.log(`📧 Fetched ${messages.length} messages from 1secmail`);
-          }
-        } else {
-          console.log(`⚠️  1secmail API error: ${messagesRes.status}`);
-        }
-      } catch (error) {
-        console.log(`⚠️  Error fetching 1secmail messages:`, error.message);
-      }
+    
     } else if (provider === 'somoj') {
       const [, username, domain] = tokenParts;
       messages.push({
