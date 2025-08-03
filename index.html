@@ -566,6 +566,9 @@
 
       try {
         const res = await fetch("/api/generate");
+        if (!res.ok) {
+          throw new Error(`HTTP ${res.status}: ${res.statusText}`);
+        }
         const data = await res.json();
         token = data.token;
         address = data.address;
@@ -586,10 +589,10 @@
         showNotification('Email address generated successfully!', 'success');
 
       } catch (error) {
-        console.error('Error generating email:', error);
-        console.error('Error details:', error.message, error.stack);
+        console.error('Error generating email:', error.message || error);
+        console.error('Error details:', error.stack || 'No stack trace available');
         emailDisplay.textContent = 'Failed to generate email address';
-        showNotification(`Failed to generate email: ${error.message}`, 'error');
+        showNotification(`Failed to generate email: ${error.message || 'Unknown error'}`, 'error');
         
         loadingSpinner.style.display = 'none';
         refreshIcon.style.display = 'block';
@@ -604,7 +607,10 @@
 
       try {
         const res = await fetch(`/api/messages?token=${token}`);
-        if (!res.ok) throw new Error(`HTTP error! status: ${res.status}`);
+        if (!res.ok) {
+          const errorText = await res.text();
+          throw new Error(`HTTP ${res.status}: ${errorText || res.statusText}`);
+        }
 
         const messages = await res.json();
         if (!Array.isArray(messages)) {
@@ -645,9 +651,9 @@
         `;
 
       } catch (error) {
-        console.error('Error loading inbox:', error);
-        console.error('Error details:', error.message, error.stack);
-        showNotification(`Failed to load messages: ${error.message}`, 'error');
+        console.error('Error loading inbox:', error.message || error);
+        console.error('Error details:', error.stack || 'No stack trace available');
+        showNotification(`Failed to load messages: ${error.message || 'Unknown error'}`, 'error');
       }
     }
 
@@ -790,7 +796,7 @@
       document.body.style.background = '#1a1a1a';
     }
     
-    // Ensure function is globally accessible
+    // Make function globally accessible
     window.closeEmailModal = closeEmailModal;
 
     function formatDate(dateString) {
